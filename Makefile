@@ -3,7 +3,7 @@ CFLAGS= -Wall -pedantic -std=gnu99
 .PHONY: all clean
 .DEFAULT_GOAL: all
 
-all: 2310hub
+all: 2310hub agentA agentB
 
 game.o: game.c game.h
 	$(CC) $(CFLAGS) -c game.c -o game.o
