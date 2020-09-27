@@ -2,9 +2,17 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <signal.h>
+#include <sys/types.h>
+#include <fcntl.h>
 
 #define PIPE_READ 0
 #define PIPE_WRITE 1
+
+#define AGENT_A_PATH "2310A"
+#define AGENT_B_PATH "2310B"
+
+#define AGENT_A_ID 1
+#define AGENT_B_ID 2
 
 /* Exit codes for the hub, as per the specification, from 0 by default. */
 typedef enum {
@@ -23,7 +31,7 @@ typedef enum {
  * child.
  *
  */
-HubStatus create_child() {
+HubStatus create_child(int id, char* map) {
     int fdsTo[2], fdsFrom[2];
     pid_t pid;
 
@@ -38,7 +46,24 @@ HubStatus create_child() {
     if (pid) { // Parent
 
     } else { // Child
+        // Read from stdin
+        dup2(fdsTo[PIPE_READ], STDIN_FILENO);
+        close(fdsTo[PIPE_WRITE]);
 
+        // Write to stdout
+        dup2(fdsFrom[PIPE_WRITE], STDOUT_FILENO);
+        close(fdsFrom[PIPE_READ]);
+
+        // Supress output to stderr
+        int supressed = open("/dev/null", O_WRONLY);
+        dup2(supressed, STDERR_FILENO);
+
+        int seed = 0; // TODO CALCULATE SEED
+        if (id == AGENT_A_ID) {
+            execlp(AGENT_A_PATH, AGENT_A_PATH, AGENT_A_ID, map, seed);
+        } else {
+            execlp(AGENT_B_PATH, AGENT_B_PATH, AGENT_B_ID, map, seed);
+        }
     }
     return NORMAL;
 }
@@ -75,22 +100,22 @@ void handle_sighup() {
 void hub_exit(HubStatus err) {
     switch (err) {
         case INCORRECT_ARG_COUNT:
-            fprintf(stderr, "Usage: 2310hub rules config");
+            fprintf(stderr, "Usage: 2310hub rules config\n");
             break;
         case INVALID_RULES:
-            fprintf(stderr, "Error reading rules");
+            fprintf(stderr, "Error reading rules\n");
             break;
         case INVALID_CONFIG:
-            fprintf(stderr, "Error reading config");
+            fprintf(stderr, "Error reading config\n");
             break;
         case AGENT_ERR:
-            fprintf(stderr, "Error starting agents");
+            fprintf(stderr, "Error starting agents\n");
             break;
         case COMM_ERR:
-            fprintf(stderr, "Communications error");
+            fprintf(stderr, "Communications error\n");
             break;
         case GOT_SIGHUP:
-            fprintf(stderr, "Caught SIGHUP");
+            fprintf(stderr, "Caught SIGHUP\n");
             break;
         default:
             break;
