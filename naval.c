@@ -85,25 +85,6 @@ void strtrim(char* string) {
 
 // ERROR HANDLING =============================================================
 
-// The error codes for the program
-typedef enum ErrorCode {
-    ERR_OK,
-    ERR_PARAMS,
-    ERR_RULES_MISSING,
-    ERR_PLR_MAP_MISSING,
-    ERR_CPU_MAP_MISSING,
-    ERR_TURNS_MISSING,
-    ERR_BAD_RULES,
-    ERR_PLR_OVERLAP,
-    ERR_CPU_OVERLAP,
-    ERR_PLR_BOUNDS,
-    ERR_CPU_BOUNDS,
-    ERR_PLR_OTHER,
-    ERR_CPU_OTHER,
-    ERR_BAD_TURNS,
-    ERR_PLR_INPUT,
-    ERR_CPU_INPUT
-} ErrorCode;
 
 // Prints the error message corresponding to the given error code
 // to stderr. Returns the associated exit code.
@@ -184,14 +165,6 @@ ErrorCode check_arguments(Args args) {
 }
 
 // RULES FILE PARSING =========================================================
-
-// Represents the rules for a given game
-typedef struct Rules {
-    int numRows;
-    int numCols;
-    int numShips;
-    int* shipLengths;
-} Rules;
 
 // The current state of reading a rules file
 typedef enum RuleReadState {
@@ -335,32 +308,6 @@ ErrorCode read_rules_file(char* filepath, Rules* rules) {
 
 // MAP FILE PARSING ===========================================================
 
-// Represents a direction a ship can be facing
-typedef enum Direction {
-    DIR_NORTH = 'N', DIR_SOUTH = 'S', DIR_EAST = 'E', DIR_WEST = 'W'
-} Direction;
-
-// Represents a position in the map
-// Note that we translate map positions into indices (e.g. A1 == 0,0)
-typedef struct Position {
-    int row;
-    int col;
-} Position;
-
-// Represents a single ship in the game
-typedef struct Ship {
-    int length;
-    Position pos;
-    Direction dir;
-    int* hits;
-} Ship;
-
-// Represents a set of ships in a game map
-typedef struct Map {
-    Ship* ships;
-    int numShips;
-} Map;
-
 // Creates a new position given a letter-number coordinate combination.
 Position new_position(char col, int row) {
     
@@ -373,7 +320,7 @@ Position new_position(char col, int row) {
 Ship new_ship(int length, Position pos, Direction dir) {
     
     Ship ship = {length, pos, dir, NULL};
-    return ship;
+    return ship;AgentStatus 
 }
 
 // Updates the length of the given ship.
@@ -522,13 +469,6 @@ ErrorCode read_map_file(char* filepath, Map* map, bool isCPU) {
 
 // GAME INFO VALIDATION =======================================================
 
-// Represents the information read about the game from the given files.
-typedef struct GameInfo {
-    Rules rules;
-    Map playerMap;
-    Map cpuMap;
-} GameInfo;
-
 // Frees all memory associated with the given game information.
 void free_game_info(GameInfo* info) {
     
@@ -663,11 +603,7 @@ typedef enum HitType {
 
 // A map to log all of the shots made so far by either the 
 // CPU or human player
-typedef struct HitMap {
-    char* data;
-    int rows;
-    int cols;
-} HitMap;
+
 
 // Creates and returns a new hit map with the given number
 // of rows and columns which contains the given ships.
@@ -802,8 +738,6 @@ void print_hit_message(HitType type) {
 
 // TURN PROCESSING ============================================================
 
-// A convenience typedef for the player move function pointers
-typedef ErrorCode (*MoveFn)(FILE*, char**);
 
 // Prints the given maps to stdout.
 void print_maps(HitMap cpuMap, HitMap playerMap) {
@@ -916,14 +850,6 @@ ErrorCode read_move(FILE* stream, GameInfo info, Position* pos, MoveFn move) {
 }
 
 // MAIN LOOP ==================================================================
-
-// A given state of the game
-typedef struct GameState {
-    GameInfo info;      // the information about the game
-    HitMap maps[2];     // the player hit maps 0 = human, 1 = cpu
-    MoveFn moves[2];    // how each player gets their move input
-    FILE* inputs[2];    // where each player gets their moves from
-} GameState;
 
 // The types of players in the game
 typedef enum PlayerType {
