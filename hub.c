@@ -60,9 +60,9 @@ HubStatus create_child(int id, char* map) {
 
         int seed = 0; // TODO CALCULATE SEED
         if (id == AGENT_A_ID) {
-            execlp(AGENT_A_PATH, AGENT_A_PATH, AGENT_A_ID, map, seed);
+            execlp(AGENT_A_PATH, AGENT_A_PATH, AGENT_A_ID, map, seed, NULL);
         } else {
-            execlp(AGENT_B_PATH, AGENT_B_PATH, AGENT_B_ID, map, seed);
+            execlp(AGENT_B_PATH, AGENT_B_PATH, AGENT_B_ID, map, seed, NULL);
         }
     }
     return NORMAL;
