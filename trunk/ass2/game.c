@@ -319,3 +319,16 @@ bool read_map_file(char* filepath, Map* map) {
     memcpy(map, &newMap, sizeof(Map));
     return true;;
 }
+
+/**
+ * Compare the tag with a line to check if it is of that type.
+ *
+ * tag (char*): the tag to check
+ * line (char*): the line to check
+ *
+ * Returns true if line is of type tag.
+ *
+ */
+bool check_tag(char* tag, char* line) {
+    return strncmp(tag, line, strlen(tag)) == 0;
+}
