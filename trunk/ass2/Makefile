@@ -15,11 +15,11 @@ agent.o: agent.c agent.h
 2310hub: game.o hub.c
 	$(CC) $(CFLAGS) game.o hub.c -o 2310hub
 
-2310A: agentA.c agent.o
-	$(CC) $(CFLAGS) agent.o agentA.c -o 2310A
+2310A: agentA.c agent.o game.o
+	$(CC) $(CFLAGS) agent.o game.o agentA.c -o 2310A
 
-2310B: agentB.c agent.o
-	$(CC) $(CFLAGS) agent.o agentB.c -o 2310B
+2310B: agentB.c agent.o game.o
+	$(CC) $(CFLAGS) agent.o game.o agentB.c -o 2310B
 
 clean:
 	rm -f $(TARGETS) *.o
