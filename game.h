@@ -98,4 +98,8 @@ bool read_map_file(char* filepath, Map* map);
 
 void free_map(Map* map);
 
+char* read_line(FILE* stream);
+bool check_tag(char* tag, char* line);
+void strtrim(char* string);
+
 #endif
