@@ -1,5 +1,3 @@
-#include "game.h"
-
 #ifndef AGENT_H
 #define AGENT_H
 
@@ -10,7 +8,9 @@ typedef enum {
     INVALID_MAP,
     INVALID_SEED,
     COMM_ERR
-} AgentError;
+} AgentStatus;
+
+void agent_exit(AgentStatus);
 
 void strategy();
 

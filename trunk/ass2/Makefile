@@ -1,17 +1,18 @@
 CC=gcc
-CFLAGS= -Wall -pedantic -std=gnu99
+CFLAGS=-Wall -pedantic -std=gnu99
+TARGETS=2310hub 2310A 2310B
 .PHONY: all clean
 .DEFAULT_GOAL: all
 
-all: 2310hub agentA agentB
+all: $(TARGETS)
 
 game.o: game.c game.h
 	$(CC) $(CFLAGS) -c game.c -o game.o
 
-agent.o: agent.c agent.h game.o
-	$(CC) $(CFLAGS) game.o -c agent.c -o agent.o
+agent.o: agent.c agent.h
+	$(CC) $(CFLAGS) -c agent.c -o agent.o
 
-2310hub: hub.c game.o
+2310hub: game.o hub.c
 	$(CC) $(CFLAGS) game.o hub.c -o 2310hub
 
 2310A: agentA.c agent.o
@@ -21,4 +22,4 @@ agent.o: agent.c agent.h game.o
 	$(CC) $(CFLAGS) agent.o agentB.c -o 2310B
 
 clean:
-	rm 2310hub agentA agentB *.o
+	rm -f $(TARGETS) *.o
