@@ -3,27 +3,6 @@
 #ifndef GAME_H
 #define GAME_H
 
-
-/* The error codes for the program as per the specification */
-typedef enum ErrorCode {
-    ERR_OK,
-    ERR_PARAMS,
-    ERR_RULES_MISSING,
-    ERR_PLR_MAP_MISSING,
-    ERR_CPU_MAP_MISSING,
-    ERR_TURNS_MISSING,
-    ERR_BAD_RULES,
-    ERR_PLR_OVERLAP,
-    ERR_CPU_OVERLAP,
-    ERR_PLR_BOUNDS,
-    ERR_CPU_BOUNDS,
-    ERR_PLR_OTHER,
-    ERR_CPU_OTHER,
-    ERR_BAD_TURNS,
-    ERR_PLR_INPUT,
-    ERR_CPU_INPUT
-} ErrorCode;
-
 /**
  * The rules for the current game.
  * - numRows: the number of rows on the board
@@ -104,22 +83,16 @@ typedef struct HitMap {
 } HitMap;
 
 /**
- * A function pointer for how to get a move (i.e. stdin).
- */
-typedef ErrorCode (*MoveFn)(FILE*, char**);
-
-/**
  * The overall state of a game.
  * info: the information for the current game
- * maps[]: the hip maps for the players
- * moves[]: the move method for each player
- * inputs[]: the location to read the moves from for players
+ * maps[]: the hit maps for the players
  */
 typedef struct GameState {
     GameInfo info;
     HitMap maps[2];
-    MoveFn moves[2];
-    FILE* inputs[2];
 } GameState;
+
+/* File parsing */
+void read_map_file(char* filepath, Map* map);
 
 #endif
