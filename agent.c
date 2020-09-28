@@ -48,7 +48,8 @@ void agent_exit(AgentStatus err) {
 AgentStatus read_message(HitMap* hitMap, Map map, Rules* rules, 
         char* message) {
     if (check_tag("YT", message)) {
-
+        make_guess(hitMap);
+        return NORMAL;
     } else if (check_tag("OK", message)) {
 
     } else if (check_tag("HIT", message)) {
@@ -89,6 +90,8 @@ AgentStatus read_rules_message(Rules* rules, char* message) {
         message++;
     }
     printf("\n");
+    rules->numRows = 8;
+    rules->numCols = 8; // TODO
     return NORMAL;
 }
 
@@ -127,19 +130,35 @@ int main(int argc, char** argv) {
         agent_exit(INVALID_MAP);
     }
 
+    // read and validate the player seed
+    int seed;
+    if (!(seed = strtol(argv[3], NULL, 10))) {
+        agent_exit(INVALID_SEED);
+    }
+
     Rules rules;
     HitMap hitMap;
 
     // main loop
     char* next;
+    bool hitMapInitialised = false; // has the hitmap been initialised
+    AgentStatus status;
     while (true) {
         if ((next = read_line(stdin)) == NULL) {
             break;
         }
-        if (read_message(&hitMap, map, &rules, next) == COMM_ERR) {
-            agent_exit(COMM_ERR);
+        if ((status = read_message(&hitMap, map, &rules, next)) == COMM_ERR) {
+            break;
+        }
+        if (!hitMapInitialised) { // we now know the width and height
+            hitMap = empty_hitmap(rules.numRows, rules.numCols);
+            hitMapInitialised = true;
         }
     }
 
     free_map(&map);
+    free_hitmap(&hitMap);
+    free_rules(&rules);
+
+    agent_exit(status);
 }

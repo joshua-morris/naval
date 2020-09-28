@@ -93,13 +93,26 @@ typedef struct GameState {
     HitMap maps[2];
 } GameState;
 
+/* The types of hits that can occur */
+typedef enum HitType {
+    HIT_NONE = '.',
+    HIT_MISS = '/',
+    HIT_HIT = '*',
+    HIT_REHIT,
+    HIT_SUNK
+} HitType;
+
 /* File parsing */
 bool read_map_file(char* filepath, Map* map);
 
+/* Memory management */
 void free_map(Map* map);
+void free_hitmap(HitMap* map);
+void free_rules(Rules* rules);
 
 char* read_line(FILE* stream);
 bool check_tag(char* tag, char* line);
 void strtrim(char* string);
+HitMap empty_hitmap(int rows, int cols);
 
 #endif

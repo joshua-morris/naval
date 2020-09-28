@@ -25,6 +25,6 @@ AgentStatus read_ok_message(char* message);
 
 /* Message sending */
 void send_map_message(Map map);
-void send_guess_message();
+void make_guess(HitMap* hitMap);
 
 #endif

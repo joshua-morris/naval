@@ -332,3 +332,48 @@ bool read_map_file(char* filepath, Map* map) {
 bool check_tag(char* tag, char* line) {
     return strncmp(tag, line, strlen(tag)) == 0;
 }
+
+/**
+ * Creates a new empty hit map.
+ *
+ * rows (int): the number of rows
+ * cols (int): the number of columns
+ *
+ * Returns an empty hitmap with the given dimensions.
+ *
+ */
+HitMap empty_hitmap(int rows, int cols) {    
+    HitMap newMap;
+    newMap.rows = rows;
+    newMap.cols = cols;
+    newMap.data = malloc(sizeof(char) * (rows * cols));
+    memset(newMap.data, HIT_NONE, sizeof(char) * (rows * cols));
+
+    return newMap;
+}
+
+/**
+ * Free the memory of a hitmap
+ *
+ * map (HitMap*): the hitmap to be freed
+ *
+ */
+void free_hitmap(HitMap* map) {   
+    if (map->data) {
+        free(map->data);
+        map->data = NULL;
+    }
+}
+
+/**
+ * Free the memory of a rules struct
+ *
+ * rules (Rules*): the rules to be freed
+ *
+ */
+void free_rules(Rules* rules) {
+    if (rules->shipLengths) {
+        free(rules->shipLengths);
+        rules->shipLengths = NULL;
+    }
+}
