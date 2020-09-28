@@ -16,9 +16,16 @@ typedef enum {
 void agent_exit(AgentStatus err);
 
 /* Message parsing */
-AgentStatus read_message(GameState* state, char* message);
-AgentStatus read_hit_message(GameInfo* info, char* message);
-AgentStatus read_sunk_message(GameInfo* info, char* message);
+AgentStatus read_message(HitMap* map, Rules* rules, char* message);
+AgentStatus read_hit_message(HitMap* map, char* message);
+AgentStatus read_sunk_message(HitMap* map, char* message);
 AgentStatus read_rules_message(Rules* rules, char* message);
+AgentStatus read_yt_message(char* message);
+AgentStatus read_ok_message(char* message);
+AgentStatus read_early_message(char* message);
+AgentStatus read_done_message(char* message);
+
+/* Message sending */
+AgentStatus send_map_message(Map* map);
 
 #endif

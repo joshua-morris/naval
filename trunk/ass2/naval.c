@@ -13,8 +13,6 @@
 #define STD_RULES_FILE "standard.rules"
 #define MIN_SHIP_COUNT 1
 #define MIN_SHIP_SIZE 1
-#define MIN_MAP_DIM 1
-#define MAX_MAP_DIM 26
 
 // ERROR HANDLING =============================================================
 
@@ -238,9 +236,6 @@ ErrorCode read_rules_file(char* filepath, Rules* rules) {
     }
     return ERR_OK;
 }
-
-// MAP FILE PARSING ===========================================================
-
 
 // GAME INFO VALIDATION =======================================================
 

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdbool.h>
 
 #ifndef GAME_H
 #define GAME_H
@@ -93,6 +94,8 @@ typedef struct GameState {
 } GameState;
 
 /* File parsing */
-void read_map_file(char* filepath, Map* map);
+bool read_map_file(char* filepath, Map* map);
+
+void free_map(Map* map);
 
 #endif

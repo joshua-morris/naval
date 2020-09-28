@@ -1,10 +1,15 @@
 CC=gcc
 CFLAGS=-Wall -pedantic -std=gnu99
 TARGETS=2310hub 2310A 2310B
-.PHONY: all clean
+DEBUG= -g
+
+.PHONY: all clean debug
 .DEFAULT_GOAL: all
 
 all: $(TARGETS)
+
+debug: CFLAGS += $(DEBUG)
+debug: $(TARGETS)
 
 game.o: game.c game.h
 	$(CC) $(CFLAGS) -c game.c -o game.o
