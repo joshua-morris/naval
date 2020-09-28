@@ -1,3 +1,5 @@
+#include "game.h"
+
 #ifndef AGENT_H
 #define AGENT_H
 
@@ -10,12 +12,13 @@ typedef enum {
     COMM_ERR
 } AgentStatus;
 
-void agent_exit(AgentStatus);
+/* Exit from the program */
+void agent_exit(AgentStatus err);
 
-void strategy();
-
-void read_args();
-
-void out();
+/* Message parsing */
+AgentStatus read_message(GameState* state, char* message);
+AgentStatus read_hit_message(GameInfo* info, char* message);
+AgentStatus read_sunk_message(GameInfo* info, char* message);
+AgentStatus read_rules_message(Rules* rules, char* message);
 
 #endif

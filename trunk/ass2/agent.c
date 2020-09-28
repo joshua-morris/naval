@@ -3,6 +3,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/**
+ * Print to standard error the error message and exit with exit status.
+ *
+ * err (AgentStatus): The exit code to exit with.
+ *
+ * Exits with code `err`.
+ *
+ */
 void agent_exit(AgentStatus err) {
     switch (err) {
         case INCORRECT_ARG_COUNT:
@@ -24,4 +32,18 @@ void agent_exit(AgentStatus err) {
             break;
     }
     exit(err);
+}
+
+/**
+ * Read the RULES message from the hub.
+ *
+ * rules (Rules*): The rules struct to be modified.
+ * message (char*): The RULES message to read.
+ *
+ * Returns NORMAL if successful, otherwise returns a communication error 
+ * (COMM_ERR).
+ *
+ */
+AgentStatus read_rules_message(Rules* rules, char* message) {
+    return NORMAL; // TODO
 }
