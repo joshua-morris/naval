@@ -102,14 +102,6 @@ typedef enum RuleReadState {
     READ_DIMS, READ_SHIPS, READ_LENGTHS, READ_DONE, READ_INVALID
 } RuleReadState;
 
-// Frees all memory for the given rules
-void free_rules(Rules* rules) {
-    
-    if (rules->shipLengths) {
-        free(rules->shipLengths);
-        rules->shipLengths = NULL;
-    }
-}
 
 // Creates a new set of rules for a standard game
 Rules standard_rules(void) {
@@ -361,41 +353,6 @@ ErrorCode validate_info(GameInfo info) {
 }
 
 // HIT LOGGING ================================================================
-
-// The types of hits that can occur
-typedef enum HitType {
-    HIT_NONE = '.',
-    HIT_MISS = '/',
-    HIT_HIT = '*',
-    HIT_REHIT,
-    HIT_SUNK
-} HitType;
-
-// A map to log all of the shots made so far by either the 
-// CPU or human player
-
-
-// Creates and returns a new hit map with the given number
-// of rows and columns which contains the given ships.
-HitMap empty_hitmap(int rows, int cols) {
-    
-    HitMap newMap;
-    newMap.rows = rows;
-    newMap.cols = cols;
-    newMap.data = malloc(sizeof(char) * (rows * cols));
-    memset(newMap.data, HIT_NONE, sizeof(char) * (rows * cols));
-
-    return newMap;
-}
-
-// Frees all memory associated with the given hit map.
-void free_hitmap(HitMap* map) {
-    
-    if (map->data) {
-        free(map->data);
-        map->data = NULL;
-    }
-}
 
 // Returns the stored information in the hit map for the given position.
 char get_position_info(HitMap map, Position pos) {
