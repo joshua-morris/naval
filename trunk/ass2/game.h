@@ -85,13 +85,27 @@ typedef struct HitMap {
 
 /**
  * The overall state of a game.
- * info: the information for the current game
- * maps[]: the hit maps for the players
+ * - info: the information for the current game
+ * - maps[]: the hit maps for the players
  */
 typedef struct GameState {
     GameInfo info;
     HitMap maps[2];
 } GameState;
+
+/**
+ * The overall state of a game from an agent's perspective.
+ * - hitMaps[]: the hitmaps of each player
+ * - map: the map of this agent
+ * - rules: the rules of this game
+ * - id: the id for this agent
+ */
+typedef struct AgentState {
+    HitMap hitMaps[2];
+    Map map;
+    Rules rules;
+    int id;
+} AgentState;
 
 /* The types of hits that can occur */
 typedef enum HitType {
@@ -106,14 +120,19 @@ typedef enum HitType {
 bool read_map_file(char* filepath, Map* map);
 
 /* Memory management */
-void free_map(Map* map);
-void free_hitmap(HitMap* map);
-void free_rules(Rules* rules);
+void free_agent_state(AgentState* state);
 
+/* Util */
 char* read_line(FILE* stream);
+Position new_position(char col, int row);
 bool check_tag(char* tag, char* line);
 void strtrim(char* string);
+
+/* Hit Maps */
 HitMap empty_hitmap(int rows, int cols);
+void initialise_hitmaps(AgentState state);
+void update_hitmap(HitMap* map, Position pos, char data);
+
 void print_maps(HitMap cpuMap, HitMap playerMap, FILE* out);
 void mark_ships(HitMap* map, Map playerMap);
 void update_ship_lengths(Rules* rules, Map map);
