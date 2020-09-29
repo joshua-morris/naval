@@ -38,6 +38,34 @@ void agent_exit(AgentStatus err) {
 }
 
 /**
+ * Wait for the DONE message from the HUB.
+ *
+ * Returns READ_DONE_ONE if player 1 wins, READ_DONE_TWO if player 2 wins
+ * otherwise a READ_ERR.
+ *
+ */
+PlayReadState wait_for_done() {
+    char* next;
+    int id;
+    if ((next = read_line(stdin)) == NULL) {
+        return READ_ERR;
+    }
+    if (check_tag("DONE", next)) {
+        next += strlen("DONE");
+        sscanf(next, "%d", &id);
+        if (id == 1) {
+            return READ_DONE_ONE;
+        } else if (id == 2) {
+            return READ_DONE_TWO;
+        } else {
+            return READ_ERR;
+        }
+    } else {
+        return READ_ERR;
+    }
+}
+
+/**
  * Read a hit message of either type HIT, SUNK, MISS.
  *
  * state (AgentState): the state of the agent to be modified
@@ -47,7 +75,7 @@ void agent_exit(AgentStatus err) {
  * Returns READ_ERR if failed otherwise moves to next state.
  *
  */
-PlayReadState read_hit_message(AgentState state, char* message, HitType hit) {
+PlayReadState read_hit_message(AgentState* state, char* message, HitType hit) {
     // remove tag
     if (hit == HIT_HIT) {
         message += strlen("HIT ");
@@ -63,24 +91,29 @@ PlayReadState read_hit_message(AgentState state, char* message, HitType hit) {
         return READ_ERR;
     }
     Position pos = new_position(col, row);
-    update_hitmap(&state.hitMaps[id - 1], pos, hit);
+    update_hitmap(&state->hitMaps[id - 1], pos, hit);
 
     if (hit == HIT_HIT) {
         fprintf(stderr, "HIT ");
     } else if (hit == HIT_SUNK) {
-        if (id == state.id) {
-            state.agentShips--;
+        if (id == state->id) {
+            state->agentShips--;
         } else {
-            state.opponentShips--;
+            state->opponentShips--;
         }
         fprintf(stderr, "SHIP SUNK ");
     } else if (hit == HIT_MISS) {
         fprintf(stderr, "MISS ");
     }
-    fprintf(stderr, "player %d guessed %c%d\n", id, col, row);
+    fprintf(stderr, "Player %d guessed %c%d\n", id, col, row);
+
+    if (state->agentShips == 0 || state->opponentShips == 0) {
+        return wait_for_done();
+    }
+
     if (id == 2) {
         return READ_PRINT;
-    } else if (state.id == 2 && id == 1) {
+    } else if (state->id == 2 && id == 1) {
         return READ_INPUT;
     } else {
         return READ_HIT;
@@ -163,15 +196,13 @@ void send_map_message(Map map) {
  * Returns the next state.
  *
  */
-PlayReadState read_input(AgentState state, char* next) {
+PlayReadState read_input(AgentState* state, char* next) {
     while (true) {
         if (check_tag("OK", next)) {
             return READ_HIT;
         } else if (check_tag("YT", next)) {
-            int opponentBoard = (state.id - 1) ^ 1; // off by 1 and flip bit
-            make_guess(&state.hitMaps[opponentBoard]);
-        } else if (check_tag("DONE", next)) {
-            return READ_DONE;
+            int opponentBoard = (state->id - 1) ^ 1; // off by 1 and flip bit
+            make_guess(&state->hitMaps[opponentBoard]);
         } else {
             return READ_ERR;
         }
@@ -190,7 +221,7 @@ PlayReadState read_input(AgentState state, char* next) {
  * Returns the next state.
  *
  */
-PlayReadState read_hit(AgentState state, char* next) {
+PlayReadState read_hit(AgentState* state, char* next) {
     if (check_tag("HIT", next)) {
         return read_hit_message(state, next, HIT_HIT);
     } else if (check_tag("SUNK", next)) {
@@ -212,15 +243,15 @@ PlayReadState read_hit(AgentState state, char* next) {
  * Returns NORMAL on success or a COMM_ERR.
  *
  */
-AgentStatus play_game(AgentState state) {
+AgentStatus play_game(AgentState* state) {
     PlayReadState readState = READ_PRINT;
     AgentStatus status = NORMAL;
 
     char* next;
     while (true) {
         if (readState == READ_PRINT) {
-            print_maps(state.hitMaps[0], state.hitMaps[1], stderr);
-            readState = state.id == 1 ? READ_INPUT : READ_HIT;
+            print_maps(state->hitMaps[0], state->hitMaps[1], stderr);
+            readState = state->id == 1 ? READ_INPUT : READ_HIT;
         }
 
         if ((next = read_line(stdin)) == NULL) {
@@ -236,7 +267,9 @@ AgentStatus play_game(AgentState state) {
         if (readState == READ_ERR) {
             status = COMM_ERR;
             break;
-        } else if (readState == READ_DONE) {
+        } else if (readState == READ_DONE_ONE || readState == READ_DONE_TWO) {
+            int id = readState == READ_DONE_ONE ? 1 : 2;
+            fprintf(stderr, "GAME OVER - player %d wins\n", id);
             status = NORMAL;
             break;
         }
@@ -285,7 +318,7 @@ int main(int argc, char** argv) {
     state.hitMaps[1] = empty_hitmap(state.rules.numRows, state.rules.numCols);
     initialise_hitmaps(state);
 
-    AgentStatus status = play_game(state);
+    AgentStatus status = play_game(&state);
 
     free_agent_state(&state);
 

@@ -73,9 +73,9 @@ typedef struct GameInfo {
 
 /**
  * The hit map for a player.
- * data: the map of hits (2D represented by 1D array)
- * rows: the number of rows for the map
- * cols: the number of columns for the map
+ * - data: the map of hits (2D represented by 1D array)
+ * - rows: the number of rows for the map
+ * - cols: the number of columns for the map
  */
 typedef struct HitMap {
     char* data;
@@ -120,9 +120,9 @@ typedef enum HitType {
     HIT_SUNK
 } HitType;
 
-// The current state of reading a rules file
+/* Current state of reading in the play loop */
 typedef enum PlayReadState {
-    READ_INPUT, READ_HIT, READ_ERR, READ_PRINT, READ_DONE
+    READ_INPUT, READ_HIT, READ_PRINT, READ_DONE_ONE, READ_DONE_TWO, READ_ERR
 } PlayReadState;
 
 /* File parsing */
@@ -137,7 +137,7 @@ Position new_position(char col, int row);
 bool check_tag(char* tag, char* line);
 void strtrim(char* string);
 
-/* Hit Maps */
+/* Hit maps */
 HitMap empty_hitmap(int rows, int cols);
 void initialise_hitmaps(AgentState state);
 void update_hitmap(HitMap* map, Position pos, char data);
