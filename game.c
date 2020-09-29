@@ -120,21 +120,6 @@ Ship new_ship(int length, Position pos, Direction dir) {
 }
 
 /**
- * Updates the length of the given ship.
- *
- * ship (Ship*): the ship to be updated
- * newLength (int): the new length of the ship
- *
- */
-void update_ship_length(Ship* ship, int newLength) {
-    if (ship->hits) {
-        free(ship->hits);
-    }
-    ship->hits = calloc(newLength, sizeof(int));
-    ship->length = newLength;
-}
-
-/**
  * Checks if the given ship has been sunk.
  *
  * ship (Ship): the ship to be checked
@@ -375,5 +360,151 @@ void free_rules(Rules* rules) {
     if (rules->shipLengths) {
         free(rules->shipLengths);
         rules->shipLengths = NULL;
+    }
+}
+
+/**
+ * Returns the stored information in the hit map for the given position.
+ *
+ * map (HitMap): the hit map to get information from
+ * pos (Position): position to look at
+ *
+ * Returns the char at position on hitmap.
+ *
+ */
+char get_position_info(HitMap map, Position pos) {
+    return map.data[map.cols * pos.row + pos.col];
+}
+
+/**
+ * Outputs the given hitmap to the given stream.
+ *
+ * map (HitMap): the map to output
+ * stream (FILE*): the location to output
+ * hideMisses (bool): hide misses when printing
+ *
+ */
+void print_hitmap(HitMap map, FILE* stream, bool hideMisses) {
+    
+    // Print the column headings
+    fprintf(stream, "   ");
+    for (int i = 0; i < map.cols; i++) {
+        fprintf(stream, "%c", 'A' + i);
+    }
+    fprintf(stream, "\n");
+
+    // For each row, print the row heading, followed by the data
+    for (int i = 0; i < map.rows; i++) {
+        fprintf(stream, "%2d ", i + 1);
+        for (int j = 0; j < map.cols; j++) {
+            Position pos = {i, j};
+            char info = get_position_info(map, pos);
+            if (info == HIT_MISS && hideMisses) {
+                info = HIT_NONE;
+            }
+            fprintf(stream, "%c", info);
+        }
+        fprintf(stream, "\n");
+    }
+}
+
+/** 
+ * Prints the given maps to output stream.
+ *
+ * cpuMap (HitMap): the map for the cpu opponent
+ * playerMap (HitMap): the map for the current player
+ * out (FILE*): the output for the print
+ *
+ */
+void print_maps(HitMap cpuMap, HitMap playerMap, FILE* out) {
+    
+    print_hitmap(cpuMap, out, false);
+    fprintf(out, "===\n");
+    print_hitmap(playerMap, out, true);
+}
+
+/**
+ * Find the next position in a given direction
+ *
+ * pos (Position): the position to look from
+ * dir (Direction): the direction to look towards
+ *
+ * Returns the position that comes after the given position
+ * in the given direction.
+ *
+ */
+Position next_position_in_direction(Position pos, Direction dir) {
+    
+    Position newPos = {pos.row, pos.col};
+
+    if (dir == DIR_NORTH) {
+        newPos.row -= 1;
+    } else if (dir == DIR_SOUTH) {
+        newPos.row += 1;
+    } else if (dir == DIR_EAST) {
+        newPos.col += 1;
+    } else {
+        newPos.col -= 1;
+    }
+    return newPos;
+}
+
+/**
+ * Updates the given position in the hitmap with the given data.
+ *
+ * map (HitMap*): the map to update
+ * pos (Position): the position of the map to be updated
+ * data (char): the new char to update with
+ *
+ */
+void update_hitmap(HitMap* map, Position pos, char data) {
+    map->data[map->cols * pos.row + pos.col] = data;
+}
+
+/**
+ * Marks the ships in the hit map using the given player map.
+ *
+ * map (HitMap*): the map to update
+ * playerMap (map): the map to copy from
+ *
+ */
+void mark_ships(HitMap* map, Map playerMap) {
+    for (int i = 0; i < playerMap.numShips; i++) {
+        Ship currShip = playerMap.ships[i];
+        Position currPos = currShip.pos;
+        for (int j = 0; j < currShip.length; j++) {
+            char str[2];
+            snprintf(str, 2, "%X", i + 1);
+            update_hitmap(map, currPos, str[0]);
+            currPos = next_position_in_direction(currPos, currShip.dir);
+        }
+    }
+}
+
+/**
+ * Updates the length of the given ship.
+ *
+ * ship (Ship*): the ship to be updated
+ * newLength (int): the new length of the ship
+ *
+ */
+void update_ship_length(Ship* ship, int newLength) {
+    if (ship->hits) {
+        free(ship->hits);
+    }
+    ship->hits = calloc(newLength, sizeof(int));
+    ship->length = newLength;
+}
+
+/** 
+ * Update the ship lengths of a map
+ *
+ * rules (Rules*): the rules to read the lengths from
+ * map (Map): the map to update
+ *
+ */
+void update_ship_lengths(Rules* rules, Map map) {
+    for (int i = 0; i < rules->numShips; i++) {
+        update_ship_length(&map.ships[i], rules->shipLengths[i]);
     }
 }

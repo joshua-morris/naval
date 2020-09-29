@@ -239,23 +239,7 @@ void free_game_info(GameInfo* info) {
     free_map(&info->cpuMap);
 }
 
-// Returns the position that comes after the given position
-// in the given direction. 
-Position next_position_in_direction(Position pos, Direction dir) {
-    
-    Position newPos = {pos.row, pos.col};
 
-    if (dir == DIR_NORTH) {
-        newPos.row -= 1;
-    } else if (dir == DIR_SOUTH) {
-        newPos.row += 1;
-    } else if (dir == DIR_EAST) {
-        newPos.col += 1;
-    } else {
-        newPos.col -= 1;
-    }
-    return newPos;
-}
 
 // Checks if the given position is within bounds with the given set of rules.
 // Returns true if it is, else returns false.
@@ -354,56 +338,11 @@ ErrorCode validate_info(GameInfo info) {
 
 // HIT LOGGING ================================================================
 
-// Returns the stored information in the hit map for the given position.
-char get_position_info(HitMap map, Position pos) {
-    return map.data[map.cols * pos.row + pos.col];
-}
 
-// Updates the given position in the hitmap with the given data.
-void update_hitmap(HitMap* map, Position pos, char data) {
-    map->data[map->cols * pos.row + pos.col] = data;
-}
 
-// Marks the ships in the hit map using the given player map.
-// This is used for human players only
-void mark_ships(HitMap* map, Map playerMap) {
-    
-    for (int i = 0; i < playerMap.numShips; i++) {
-        Ship currShip = playerMap.ships[i];
-        Position currPos = currShip.pos;
-        for (int j = 0; j < currShip.length; j++) {
-	    char str[2];
-	    snprintf(str, 2, "%X", i + 1);
-            update_hitmap(map, currPos, str[0]);
-            currPos = next_position_in_direction(currPos, currShip.dir);
-        }
-    }
-}
 
-// Outputs the given hitmap to the given stream.
-void print_hitmap(HitMap map, FILE* stream, bool hideMisses) {
-    
-    // Print the column headings
-    printf("   ");
-    for (int i = 0; i < map.cols; i++) {
-        fprintf(stream, "%c", 'A' + i);
-    }
-    fprintf(stream, "\n");
 
-    // For each row, print the row heading, followed by the data
-    for (int i = 0; i < map.rows; i++) {
-        fprintf(stream, "%2d ", i + 1);
-        for (int j = 0; j < map.cols; j++) {
-            Position pos = {i, j};
-            char info = get_position_info(map, pos);
-            if (info == HIT_MISS && hideMisses) {
-                info = HIT_NONE;
-            }
-            fprintf(stream, "%c", info);
-        }
-        fprintf(stream, "\n");
-    }
-}
+
 
 // Checks if the given target position will hit the given ship
 // Returns true if it will and updates index with the position
@@ -466,13 +405,7 @@ void print_hit_message(HitType type) {
 // TURN PROCESSING ============================================================
 
 
-// Prints the given maps to stdout.
-void print_maps(HitMap cpuMap, HitMap playerMap) {
-    
-    print_hitmap(cpuMap, stdout, false);
-    printf("===\n");
-    print_hitmap(playerMap, stdout, true);
-}
+
 
 // Prints the player prompt to the given stream.
 void print_prompt(FILE* stream, bool isCPU) {
