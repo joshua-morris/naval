@@ -114,5 +114,8 @@ char* read_line(FILE* stream);
 bool check_tag(char* tag, char* line);
 void strtrim(char* string);
 HitMap empty_hitmap(int rows, int cols);
+void print_maps(HitMap cpuMap, HitMap playerMap, FILE* out);
+void mark_ships(HitMap* map, Map playerMap);
+void update_ship_lengths(Rules* rules, Map map);
 
 #endif

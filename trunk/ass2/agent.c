@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 
 /**
  * Print to standard error the error message and exit with exit status.
@@ -45,10 +46,10 @@ void agent_exit(AgentStatus err) {
  * Returns NORMAL if successful or a COMM_ERR.
  *
  */
-AgentStatus read_message(HitMap* hitMap, Map map, Rules* rules, 
-        char* message) {
+AgentStatus read_message(HitMap* playerMap, HitMap* cpuMap, Map map, 
+        Rules* rules, char* message) {
     if (check_tag("YT", message)) {
-        make_guess(hitMap);
+        make_guess(cpuMap);
         return NORMAL;
     } else if (check_tag("OK", message)) {
 
@@ -83,15 +84,39 @@ AgentStatus read_message(HitMap* hitMap, Map map, Rules* rules,
 AgentStatus read_rules_message(Rules* rules, char* message) {
     message += sizeof("RULES"); // remove the tag
     strtrim(message);
- //   int width, height, numShips;
- //   int* shipLengths;
-    while (*message != '\0') {
-        printf("%c", *message);
+    int width, height, numShips;
+
+    if (sscanf(message, "%d,%d,%d", &width, &height, &numShips) != 3) {
+        agent_exit(COMM_ERR);
+    }
+
+    int count = 0; // skipping past the first three commas
+    while (count < 3) {
+        if (*message == ',') {
+            count++;
+        }
         message++;
     }
-    printf("\n");
-    rules->numRows = 8;
-    rules->numCols = 8; // TODO
+
+    rules->shipLengths = malloc(sizeof(int) * numShips);
+    int index = 0;
+    while (*message != '\0') {
+        if (*message == ',') {
+            index++;
+        } else {
+            if (sscanf(message, "%d", &rules->shipLengths[index]) != 1) {
+                agent_exit(COMM_ERR);
+            }
+        }
+        message++;
+    }
+    if (index != numShips - 1) {
+        agent_exit(COMM_ERR);
+    }
+
+    rules->numRows = height;
+    rules->numCols = width;
+    rules->numShips = numShips;
     return NORMAL;
 }
 
@@ -113,6 +138,44 @@ void send_map_message(Map map) {
     printf("\n");
 }
 
+/**
+ * Run the main game loop for an agent.
+ *
+ * hitMap (HitMap*): a pointer to the opposing agent's hitmap
+ * map (Map*): the current agent's map
+ * rules (Rules*): the rules of the current game
+ *
+ * Returns NORMAL on success or a COMM_ERR.
+ *
+ */
+AgentStatus play_game(HitMap playerMap, HitMap cpuMap, Map map, 
+        Rules rules) {
+    char* next;
+    bool hitMapInitialised = false; // has the hitmap been initialised
+    AgentStatus status;
+
+    while (true) {
+        if ((next = read_line(stdin)) == NULL) {
+            break;
+        }
+        if ((status = read_message(&playerMap, &cpuMap, map, 
+                &rules, next)) == COMM_ERR) {
+            break;
+        }
+        if (!hitMapInitialised) { // we now know the width and height
+            cpuMap = empty_hitmap(rules.numRows, rules.numCols);
+            playerMap = empty_hitmap(rules.numRows, rules.numCols);
+            update_ship_lengths(&rules, map);
+            mark_ships(&playerMap, map);
+            hitMapInitialised = true;
+        }
+        free(next);
+        print_maps(cpuMap, playerMap, stderr);
+    }
+    free(next);
+    return status;
+}
+
 int main(int argc, char** argv) {
     if (argc != 4) {
         agent_exit(INCORRECT_ARG_COUNT);
@@ -132,32 +195,18 @@ int main(int argc, char** argv) {
 
     // read and validate the player seed
     int seed;
-    if (!(seed = strtol(argv[3], NULL, 10))) {
+    if (sscanf(argv[3], "%d", &seed) != 1) {
         agent_exit(INVALID_SEED);
     }
 
     Rules rules;
-    HitMap hitMap;
-
-    // main loop
-    char* next;
-    bool hitMapInitialised = false; // has the hitmap been initialised
-    AgentStatus status;
-    while (true) {
-        if ((next = read_line(stdin)) == NULL) {
-            break;
-        }
-        if ((status = read_message(&hitMap, map, &rules, next)) == COMM_ERR) {
-            break;
-        }
-        if (!hitMapInitialised) { // we now know the width and height
-            hitMap = empty_hitmap(rules.numRows, rules.numCols);
-            hitMapInitialised = true;
-        }
-    }
+    HitMap cpuMap, playerMap;
+    
+    AgentStatus status = play_game(playerMap, cpuMap, map, rules);
 
     free_map(&map);
-    free_hitmap(&hitMap);
+    free_hitmap(&cpuMap);
+    free_hitmap(&playerMap);
     free_rules(&rules);
 
     agent_exit(status);
