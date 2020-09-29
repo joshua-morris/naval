@@ -17,8 +17,8 @@ void agent_exit(AgentStatus err);
 
 /* Message parsing */
 AgentStatus read_message(AgentState state, char* message);
-AgentStatus read_hit_message(AgentState state, char* message, HitType hit);
 AgentStatus read_rules_message(Rules* rules, char* message);
+PlayReadState read_hit_message(AgentState state, char* message, HitType hit);
 
 /* Message sending */
 void send_map_message(Map map);

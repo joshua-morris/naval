@@ -98,12 +98,16 @@ typedef struct GameState {
  * - hitMaps[]: the hitmaps of each player
  * - map: the map of this agent
  * - rules: the rules of this game
+ * - opponentShips: the number of ships the opponent has
+ * - agentShips: the number of ships this agent has
  * - id: the id for this agent
  */
 typedef struct AgentState {
     HitMap hitMaps[2];
     Map map;
     Rules rules;
+    int opponentShips;
+    int agentShips;
     int id;
 } AgentState;
 
@@ -115,6 +119,11 @@ typedef enum HitType {
     HIT_REHIT,
     HIT_SUNK
 } HitType;
+
+// The current state of reading a rules file
+typedef enum PlayReadState {
+    READ_INPUT, READ_HIT, READ_ERR, READ_PRINT, READ_DONE
+} PlayReadState;
 
 /* File parsing */
 bool read_map_file(char* filepath, Map* map);
