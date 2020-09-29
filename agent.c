@@ -38,44 +38,16 @@ void agent_exit(AgentStatus err) {
 }
 
 /**
- * Read the given message and update the map or rules if necessary.
- *
- * map (HitMap*): the map to be updated
- * rules (Rules*): the rules to be updated
- *
- * Returns NORMAL if successful or a COMM_ERR.
- *
- */
-AgentStatus read_message(AgentState state, char* message) {
-    if (check_tag("YT", message)) {
-        int opponentBoard = (state.id - 1) ^ 1; // off by 1 and flip bit
-        make_guess(&state.hitMaps[opponentBoard]);
-        return NORMAL;
-    } else if (check_tag("OK", message)) {
-
-    } else if (check_tag("HIT", message)) {
-        return read_hit_message(state, message, HIT_HIT);
-    } else if (check_tag("SUNK", message)) {
-        return read_hit_message(state, message, HIT_SUNK);
-    } else if (check_tag("MISS", message)) {
-        return read_hit_message(state, message, HIT_MISS);
-    } else if (check_tag("DONE", message)) {
-        return NORMAL;
-    }
-    return COMM_ERR;
-}
-
-/**
  * Read a hit message of either type HIT, SUNK, MISS.
  *
  * state (AgentState): the state of the agent to be modified
  * message (char*): the line to read from
  * hit (HitType): the type of hit
  *
- * Returns NORMAL on success, otherwise a COMM_ERR.
+ * Returns READ_ERR if failed otherwise moves to next state.
  *
  */
-AgentStatus read_hit_message(AgentState state, char* message, HitType hit) {
+PlayReadState read_hit_message(AgentState state, char* message, HitType hit) {
     // remove tag
     if (hit == HIT_HIT) {
         message += strlen("HIT ");
@@ -88,7 +60,7 @@ AgentStatus read_hit_message(AgentState state, char* message, HitType hit) {
     char col;
     int id, row;
     if (sscanf(message, "%d,%c%d", &id, &col, &row) != 3) {
-        return COMM_ERR;
+        return READ_ERR;
     }
     Position pos = new_position(col, row);
     update_hitmap(&state.hitMaps[id - 1], pos, hit);
@@ -96,12 +68,23 @@ AgentStatus read_hit_message(AgentState state, char* message, HitType hit) {
     if (hit == HIT_HIT) {
         fprintf(stderr, "HIT ");
     } else if (hit == HIT_SUNK) {
+        if (id == state.id) {
+            state.agentShips--;
+        } else {
+            state.opponentShips--;
+        }
         fprintf(stderr, "SHIP SUNK ");
     } else if (hit == HIT_MISS) {
         fprintf(stderr, "MISS ");
     }
     fprintf(stderr, "player %d guessed %c%d\n", id, col, row);
-    return NORMAL;
+    if (id == 2) {
+        return READ_PRINT;
+    } else if (state.id == 2 && id == 1) {
+        return READ_INPUT;
+    } else {
+        return READ_HIT;
+    }
 }
 
 /**
@@ -172,6 +155,54 @@ void send_map_message(Map map) {
 }
 
 /**
+ * Read from stdin while in the READ_INPUT state.
+ *
+ * state (AgentState): the current state of the agent
+ * next (char*): the line from stdin
+ *
+ * Returns the next state.
+ *
+ */
+PlayReadState read_input(AgentState state, char* next) {
+    while (true) {
+        if (check_tag("OK", next)) {
+            return READ_HIT;
+        } else if (check_tag("YT", next)) {
+            int opponentBoard = (state.id - 1) ^ 1; // off by 1 and flip bit
+            make_guess(&state.hitMaps[opponentBoard]);
+        } else if (check_tag("DONE", next)) {
+            return READ_DONE;
+        } else {
+            return READ_ERR;
+        }
+        if ((next = read_line(stdin)) == NULL) {
+            return READ_ERR;
+        }
+    }
+}
+
+/**
+ * Read from stdin while in the READ_HIT state.
+ *
+ * state (AgentState): the current state of the agent
+ * next (char*): the line from stdin
+ *
+ * Returns the next state.
+ *
+ */
+PlayReadState read_hit(AgentState state, char* next) {
+    if (check_tag("HIT", next)) {
+        return read_hit_message(state, next, HIT_HIT);
+    } else if (check_tag("SUNK", next)) {
+        return read_hit_message(state, next, HIT_SUNK);
+    } else if (check_tag("MISS", next)) {
+        return read_hit_message(state, next, HIT_MISS);
+    } else {
+        return READ_ERR;
+    }
+}
+
+/**
  * Run the main game loop for an agent.
  *
  * hitMap (HitMap*): a pointer to the opposing agent's hitmap
@@ -182,24 +213,31 @@ void send_map_message(Map map) {
  *
  */
 AgentStatus play_game(AgentState state) {
+    PlayReadState readState = READ_PRINT;
+    AgentStatus status = NORMAL;
+
     char* next;
-    AgentStatus status;
-
     while (true) {
-        print_maps(state.hitMaps[0], state.hitMaps[1], stderr);
+        if (readState == READ_PRINT) {
+            print_maps(state.hitMaps[0], state.hitMaps[1], stderr);
+            readState = state.id == 1 ? READ_INPUT : READ_HIT;
+        }
 
         if ((next = read_line(stdin)) == NULL) {
             break;
         }
-        if ((status = read_message(state, next)) == COMM_ERR) {
-            break;
-        }
-        free(next);
 
-        if ((next = read_line(stdin)) == NULL) {
-            break;
+        if (readState == READ_INPUT) {
+            readState = read_input(state, next);
+        } else if (readState == READ_HIT) {
+            readState = read_hit(state, next);
         }
-        if ((status = read_message(state, next)) == COMM_ERR) {
+
+        if (readState == READ_ERR) {
+            status = COMM_ERR;
+            break;
+        } else if (readState == READ_DONE) {
+            status = NORMAL;
             break;
         }
         free(next);
@@ -230,24 +268,24 @@ int main(int argc, char** argv) {
         agent_exit(INVALID_SEED);
     }
 
-    AgentStatus status;
-    
-    // read the rules message and send map message
-    char* line = read_line(stdin);
-    if (line == NULL) {
+    char* next;
+    if ((next = read_line(stdin)) == NULL) {
         agent_exit(COMM_ERR);
-    } else {
-        if ((status = read_rules_message(&state.rules, line)) == COMM_ERR) {
-            agent_exit(status);
-        }
-        send_map_message(state.map);
     }
-    free(line);
+    if (read_rules_message(&state.rules, next) == COMM_ERR) {
+        agent_exit(COMM_ERR);
+    }
+    send_map_message(state.map);
+    free(next);
+
+    state.opponentShips = state.rules.numShips;
+    state.agentShips = state.rules.numShips;
 
     state.hitMaps[0] = empty_hitmap(state.rules.numRows, state.rules.numCols);
     state.hitMaps[1] = empty_hitmap(state.rules.numRows, state.rules.numCols);
     initialise_hitmaps(state);
-    status = play_game(state);
+
+    AgentStatus status = play_game(state);
 
     free_agent_state(&state);
 
