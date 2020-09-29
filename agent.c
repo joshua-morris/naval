@@ -46,29 +46,62 @@ void agent_exit(AgentStatus err) {
  * Returns NORMAL if successful or a COMM_ERR.
  *
  */
-AgentStatus read_message(HitMap* playerMap, HitMap* cpuMap, Map map, 
-        Rules* rules, char* message) {
+AgentStatus read_message(AgentState state, char* message) {
     if (check_tag("YT", message)) {
-        make_guess(cpuMap);
+        int opponentBoard = (state.id - 1) ^ 1; // off by 1 and flip bit
+        make_guess(&state.hitMaps[opponentBoard]);
         return NORMAL;
     } else if (check_tag("OK", message)) {
 
     } else if (check_tag("HIT", message)) {
-
+        return read_hit_message(state, message, HIT_HIT);
     } else if (check_tag("SUNK", message)) {
-
+        return read_hit_message(state, message, HIT_SUNK);
     } else if (check_tag("MISS", message)) {
-
-    } else if (check_tag("RULES", message)) {
-        AgentStatus status = read_rules_message(rules, message);
-        send_map_message(map);
-        return status;
-    } else if (check_tag("EARLY", message)) {
-        agent_exit(COMM_ERR);
+        return read_hit_message(state, message, HIT_MISS);
     } else if (check_tag("DONE", message)) {
-        agent_exit(NORMAL);
+        return NORMAL;
     }
     return COMM_ERR;
+}
+
+/**
+ * Read a hit message of either type HIT, SUNK, MISS.
+ *
+ * state (AgentState): the state of the agent to be modified
+ * message (char*): the line to read from
+ * hit (HitType): the type of hit
+ *
+ * Returns NORMAL on success, otherwise a COMM_ERR.
+ *
+ */
+AgentStatus read_hit_message(AgentState state, char* message, HitType hit) {
+    // remove tag
+    if (hit == HIT_HIT) {
+        message += strlen("HIT ");
+    } else if (hit == HIT_SUNK) {
+        message += strlen("SUNK ");
+    } else if (hit == HIT_MISS) {
+        message += strlen("MISS ");
+    }
+
+    char col;
+    int id, row;
+    if (sscanf(message, "%d,%c%d", &id, &col, &row) != 3) {
+        return COMM_ERR;
+    }
+    Position pos = new_position(col, row);
+    update_hitmap(&state.hitMaps[id - 1], pos, hit);
+
+    if (hit == HIT_HIT) {
+        fprintf(stderr, "HIT ");
+    } else if (hit == HIT_SUNK) {
+        fprintf(stderr, "SHIP SUNK ");
+    } else if (hit == HIT_MISS) {
+        fprintf(stderr, "MISS ");
+    }
+    fprintf(stderr, "player %d guessed %c%d\n", id, col, row);
+    return NORMAL;
 }
 
 /**
@@ -82,7 +115,7 @@ AgentStatus read_message(HitMap* playerMap, HitMap* cpuMap, Map map,
  *
  */
 AgentStatus read_rules_message(Rules* rules, char* message) {
-    message += sizeof("RULES"); // remove the tag
+    message += strlen("RULES "); // remove the tag
     strtrim(message);
     int width, height, numShips;
 
@@ -148,29 +181,28 @@ void send_map_message(Map map) {
  * Returns NORMAL on success or a COMM_ERR.
  *
  */
-AgentStatus play_game(HitMap playerMap, HitMap cpuMap, Map map, 
-        Rules rules) {
+AgentStatus play_game(AgentState state) {
     char* next;
-    bool hitMapInitialised = false; // has the hitmap been initialised
     AgentStatus status;
 
     while (true) {
+        print_maps(state.hitMaps[0], state.hitMaps[1], stderr);
+
         if ((next = read_line(stdin)) == NULL) {
             break;
         }
-        if ((status = read_message(&playerMap, &cpuMap, map, 
-                &rules, next)) == COMM_ERR) {
+        if ((status = read_message(state, next)) == COMM_ERR) {
             break;
         }
-        if (!hitMapInitialised) { // we now know the width and height
-            cpuMap = empty_hitmap(rules.numRows, rules.numCols);
-            playerMap = empty_hitmap(rules.numRows, rules.numCols);
-            update_ship_lengths(&rules, map);
-            mark_ships(&playerMap, map);
-            hitMapInitialised = true;
+        free(next);
+
+        if ((next = read_line(stdin)) == NULL) {
+            break;
+        }
+        if ((status = read_message(state, next)) == COMM_ERR) {
+            break;
         }
         free(next);
-        print_maps(cpuMap, playerMap, stderr);
     }
     free(next);
     return status;
@@ -180,16 +212,15 @@ int main(int argc, char** argv) {
     if (argc != 4) {
         agent_exit(INCORRECT_ARG_COUNT);
     }
-    
+    AgentState state;
     // read and validate the player id
-    int id;
-    if (!(id = strtol(argv[1], NULL, 10)) || id > 2 || id < 1) {
+    if (!(state.id = strtol(argv[1], NULL, 10)) || state.id > 2 
+            || state.id < 1) {
         agent_exit(INVALID_ID);
     }
 
     // read and validate the map file
-    Map map;
-    if (!read_map_file(argv[2], &map)) {
+    if (!read_map_file(argv[2], &state.map)) {
         agent_exit(INVALID_MAP);
     }
 
@@ -199,15 +230,26 @@ int main(int argc, char** argv) {
         agent_exit(INVALID_SEED);
     }
 
-    Rules rules;
-    HitMap cpuMap, playerMap;
+    AgentStatus status;
     
-    AgentStatus status = play_game(playerMap, cpuMap, map, rules);
+    // read the rules message and send map message
+    char* line = read_line(stdin);
+    if (line == NULL) {
+        agent_exit(COMM_ERR);
+    } else {
+        if ((status = read_rules_message(&state.rules, line)) == COMM_ERR) {
+            agent_exit(status);
+        }
+        send_map_message(state.map);
+    }
+    free(line);
 
-    free_map(&map);
-    free_hitmap(&cpuMap);
-    free_hitmap(&playerMap);
-    free_rules(&rules);
+    state.hitMaps[0] = empty_hitmap(state.rules.numRows, state.rules.numCols);
+    state.hitMaps[1] = empty_hitmap(state.rules.numRows, state.rules.numCols);
+    initialise_hitmaps(state);
+    status = play_game(state);
+
+    free_agent_state(&state);
 
     agent_exit(status);
 }

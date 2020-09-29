@@ -24,7 +24,14 @@ void make_guess(HitMap* hitMap) {
     int row = topMost / hitMap->rows;
     printf("GUESS ");
     if (row % 2) {
-        printf("%c%d\n", (topMost % hitMap->cols) + 'A', row + 1); // TODO
+        int rightMostCol = hitMap->cols; // find the rightmost with no guess
+        for (int i = rightMostCol - 1; i >= 0; i--) {
+            if (hitMap->data[hitMap->cols * row + i] == HIT_NONE) {
+                rightMostCol = i;
+                break;
+            }
+        }
+        printf("%c%d\n", rightMostCol + 'A', row + 1);
     } else {
         printf("%c%d\n", (topMost % hitMap->cols) + 'A', row + 1);
     }

@@ -364,6 +364,19 @@ void free_rules(Rules* rules) {
 }
 
 /**
+ * Free the memory of an agent state
+ *
+ * state (AgentState*): the agent state to be freed
+ *
+ */
+void free_agent_state(AgentState* state) {
+    free_rules(&state->rules);
+    free_hitmap(&state->hitMaps[0]);
+    free_hitmap(&state->hitMaps[1]);
+    free_map(&state->map);
+}
+
+/**
  * Returns the stored information in the hit map for the given position.
  *
  * map (HitMap): the hit map to get information from
@@ -417,10 +430,9 @@ void print_hitmap(HitMap map, FILE* stream, bool hideMisses) {
  *
  */
 void print_maps(HitMap cpuMap, HitMap playerMap, FILE* out) {
-    
     print_hitmap(cpuMap, out, false);
     fprintf(out, "===\n");
-    print_hitmap(playerMap, out, true);
+    print_hitmap(playerMap, out, false);
 }
 
 /**
@@ -434,7 +446,6 @@ void print_maps(HitMap cpuMap, HitMap playerMap, FILE* out) {
  *
  */
 Position next_position_in_direction(Position pos, Direction dir) {
-    
     Position newPos = {pos.row, pos.col};
 
     if (dir == DIR_NORTH) {
@@ -506,5 +517,20 @@ void update_ship_length(Ship* ship, int newLength) {
 void update_ship_lengths(Rules* rules, Map map) {
     for (int i = 0; i < rules->numShips; i++) {
         update_ship_length(&map.ships[i], rules->shipLengths[i]);
+    }
+}
+
+/**
+ * Initialise the hitmaps of an agent
+ *
+ * state (AgentState): the agent state to be modified
+ *
+ */
+void initialise_hitmaps(AgentState state) {
+    update_ship_lengths(&state.rules, state.map);
+    if (state.id == 1) {
+        mark_ships(&state.hitMaps[0], state.map);
+    } else {
+        mark_ships(&state.hitMaps[1], state.map);
     }
 }
