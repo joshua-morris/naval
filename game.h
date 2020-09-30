@@ -60,15 +60,34 @@ typedef struct Map {
 } Map;
 
 /**
+ * Represents an agent process.
+ *
+ * - mapPath: path to the agent's map
+ * - programPath: path to the program the agent runs
+ * - pid: process id of the agent
+ * - in: pipe in for the agent
+ * - out: pipe out for the agent
+ *
+ */
+typedef struct Agent {
+    char* mapPath;
+    char* programPath;
+    int pid;
+    FILE* in;
+    FILE* out;
+} Agent;
+
+/**
  * Represents the information of a game.
  * - rules: the rules for the current game
  * - playerOneMap: the game map for the first player
  * - playerTwoMap: the game map for the second player
+ * - playerOnePath: path to player one program
+ * - playerTwoPath: path to player two program
  */
 typedef struct GameInfo {
     Rules rules;
-    Map playerOneMap;
-    Map playerTwoMap;
+    Agent agents[2];
 } GameInfo;
 
 /**
@@ -111,6 +130,16 @@ typedef struct AgentState {
     int id;
 } AgentState;
 
+/* The current state of reading a rules file */
+typedef enum RuleReadState {
+    READ_DIMS, READ_SHIPS, READ_LENGTHS, READ_DONE, READ_INVALID
+} RuleReadState;
+
+/* The current state of the hub */
+typedef enum HubPlayState {
+    READ_MAPS, PLAY_TURN
+} HubPlayState;
+
 /* The types of hits that can occur */
 typedef enum HitType {
     HIT_NONE = '.',
@@ -127,6 +156,8 @@ typedef enum PlayReadState {
 
 /* File parsing */
 bool read_map_file(char* filepath, Map* map);
+void read_rules_file(char* filepath, Rules* rules);
+void read_config_file(char* filepath, GameInfo* info);
 
 /* Memory management */
 void free_agent_state(AgentState* state);

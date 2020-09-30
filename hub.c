@@ -1,3 +1,5 @@
+#include "game.h"
+
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -8,11 +10,7 @@
 #define PIPE_READ 0
 #define PIPE_WRITE 1
 
-#define AGENT_A_PATH "2310A"
-#define AGENT_B_PATH "2310B"
-
-#define AGENT_A_ID 1
-#define AGENT_B_ID 2
+#define NUM_AGENTS 2
 
 /* Exit codes for the hub, as per the specification, from 0 by default. */
 typedef enum {
@@ -26,53 +24,93 @@ typedef enum {
 } HubStatus;
 
 /**
+ * Send the RULES message to an agent.
+ *
+ * rules (Rules): the rules to be sent
+ * fileout (FILE*): the input for the agent
+ *
+ */
+void send_rules_message(Rules rules, FILE* fileout) {
+    fprintf(fileout, "RULES %d,%d,%d", rules.numCols, rules.numRows, 
+            rules.numShips);
+    for (int i = 0; i < rules.numShips; i++) {
+        fprintf(fileout, ",%d", rules.shipLengths[i]);
+    }
+    fprintf(fileout, "\n");
+}
+
+/**
+ * Create a child process for an agent.
+ *
+ * id (int): the id of the agent
+ * round (int): the current round of the game
+ * agent (Agent*): the agent to start
  *
  * Returns NORMAL if success, or AGENT_ERR if there is a problem starting the
  * child.
  *
  */
-HubStatus create_child(int id, char* map) {
-    int fdsTo[2], fdsFrom[2];
-    pid_t pid;
+HubStatus create_child(int id, int round, Agent* agent) {
+    int pipeIn[2], pipeOut[2], pipeErr[2];
+    int pid;
 
-    if (pipe(fdsTo) || pipe(fdsFrom)) {
+    if (pipe(pipeIn) || pipe(pipeOut) || pipe(pipeErr)) {
         return AGENT_ERR;
     }
 
+    fcntl(pipeErr[PIPE_WRITE], F_SETFD, FD_CLOEXEC);
     if ((pid = fork()) < 0) {
         return AGENT_ERR;
     }
 
     if (pid) { // Parent
+        agent->pid = pid;
+        agent->in = fdopen(pipeIn[PIPE_WRITE], "w");
+        agent->out = fdopen(pipeOut[PIPE_READ], "r");
 
+        close(pipeIn[PIPE_READ]);
+        close(pipeOut[PIPE_WRITE]);
+        close(pipeErr[PIPE_WRITE]);
+        char dummy; // check the pipe exec succeeded
+        if (read(pipeErr[0], &dummy, sizeof(dummy)) > 0) {
+            return AGENT_ERR;
+        }
+        close(pipeErr[PIPE_READ]);
+        return NORMAL;
     } else { // Child
         // Read from stdin
-        dup2(fdsTo[PIPE_READ], STDIN_FILENO);
-        close(fdsTo[PIPE_WRITE]);
-
+        dup2(pipeIn[PIPE_READ], STDIN_FILENO);
         // Write to stdout
-        dup2(fdsFrom[PIPE_WRITE], STDOUT_FILENO);
-        close(fdsFrom[PIPE_READ]);
-
-        // Supress output to stderr
+        dup2(pipeOut[PIPE_WRITE], STDOUT_FILENO);
+        // stderr gets supressed
         int supressed = open("/dev/null", O_WRONLY);
         dup2(supressed, STDERR_FILENO);
-
-        int seed = 0; // TODO CALCULATE SEED
-        if (id == AGENT_A_ID) {
-            execlp(AGENT_A_PATH, AGENT_A_PATH, AGENT_A_ID, map, seed, NULL);
-        } else {
-            execlp(AGENT_B_PATH, AGENT_B_PATH, AGENT_B_ID, map, seed, NULL);
-        }
+        // close unused ends
+        close(pipeIn[PIPE_WRITE]);
+        close(pipeOut[PIPE_READ]);
+        close(pipeErr[PIPE_READ]);
+        fcntl(pipeErr[PIPE_WRITE], F_SETFD, FD_CLOEXEC);
+        
+        char execId[4], execSeed[4]; // need to convert to strings
+        sprintf(execId, "%d", id);
+        sprintf(execSeed, "%d", 2 * round + id);
+        execlp(agent->programPath, agent->programPath, execId, agent->mapPath, 
+                execSeed, NULL);
+        char dummy = 0;
+        write(pipeErr[PIPE_WRITE], &dummy, sizeof(dummy)); // write to check
     }
-    return NORMAL;
+    return AGENT_ERR;
 }
 
 /**
  *
  */
-void create_children() {
-
+HubStatus create_children(GameInfo* info) {
+    if (create_child(1, 0, &info->agents[0]) == AGENT_ERR ||   
+            create_child(2, 0, &info->agents[1]) == AGENT_ERR) {
+        return AGENT_ERR;
+    }
+    return NORMAL;
 }
 
 /**
@@ -124,15 +162,49 @@ void hub_exit(HubStatus err) {
     exit(err);
 }
 
+/**
+ * Start the hub execution.
+ *
+ * state (GameState*): the state of the game
+ *
+ */
+void play_game(GameState* state) {
+    HubPlayState playState = READ_MAPS;
+    // put this in a for loop for the rounds
+    while (true) {
+        for (int agent = 0; agent < NUM_AGENTS; agent++) {
+            if (playState == READ_MAPS) {
+                send_rules_message(state->info.rules, 
+                        state->info.agents[agent].in);
+                // read map message
+                // update hitmaps
+            } else if (playState == PLAY_TURN) {
+                // get players input
+            }
+            // handle game over
+        }
+    }
+}
+
 int main(int argc, char** argv) {
     if (argc != 3) {
         hub_exit(INCORRECT_ARG_COUNT);
     }
-    create_children();
+    GameInfo info;
+    read_rules_file(argv[1], &info.rules);
+    read_config_file(argv[2], &info);
+
+    HubStatus status;
+    status = create_children(&info);
+
+    GameState state;
+    state.info = info;
+
+    play_game(&state);
 
     struct sigaction sa;
     sa.sa_handler = handle_sighup;
     sigaction(SIGHUP, &sa, 0);
 
-    return 0;
+    hub_exit(status);
 }
