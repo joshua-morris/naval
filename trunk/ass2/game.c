@@ -8,6 +8,10 @@
 #define INITIAL_BUFFER_SIZE 10
 #define MIN_MAP_DIM 1
 #define MAX_MAP_DIM 26
+#define MIN_ARGC 5
+#define STD_RULES_FILE "standard.rules"
+#define MIN_SHIP_COUNT 1
+#define MIN_SHIP_SIZE 1
 
 /**
  * Reads a line of input from the given input stream.
@@ -532,5 +536,152 @@ void initialise_hitmaps(AgentState state) {
         mark_ships(&state.hitMaps[0], state.map);
     } else {
         mark_ships(&state.hitMaps[1], state.map);
+    }
+}
+
+/* Creates a new set of rules for a standard game */
+Rules standard_rules(void) {
+    
+    Rules rules;
+    rules.numRows = 8;
+    rules.numCols = 8;
+    rules.numShips = 5;
+    rules.shipLengths = calloc(rules.numShips, sizeof(int));
+
+    for (int i = 0; i < rules.numShips; i++) {
+        rules.shipLengths[i] = 5 - i;
+    }
+    return rules;
+}
+
+// Reads the dimensions in the rules file from the given line. 
+// Updates the provided rules with the read information. If an
+// error occurs, returns READ_INVALID, otherwise returns READ_SHIPS.
+RuleReadState read_dimensions(char* line, Rules* rules) {
+
+    int width, height;
+    char dummy;
+
+    int count = sscanf(line, "%d %d%c", &width, &height, &dummy);
+    if (count != 2) {
+        return READ_INVALID;
+    }
+    if (width < MIN_MAP_DIM || width > MAX_MAP_DIM || 
+            height < MIN_MAP_DIM || height > MAX_MAP_DIM) {
+        return READ_INVALID;
+    }
+    rules->numRows = height;
+    rules->numCols = width;
+    return READ_SHIPS;
+}
+
+// Reads the number of ships in the rules file using the given line. 
+// Updates the provided rules with the read information. If an error
+// occurs, returns READ_INVALID, otherwise returns READ_SHIPS.
+RuleReadState read_num_ships(char* line, Rules* rules) {
+    
+    char* err;
+    int numShips = strtol(line, &err, 10);
+    
+    if (err == line || *err != '\0' || numShips < MIN_SHIP_COUNT) {
+        return READ_INVALID;
+    }
+    rules->numShips = numShips;
+    return READ_LENGTHS;
+}
+
+// Reads the ship length for the numRead'th ship from the given line. 
+// Updates the provided rules with the read information. If an error
+// occurs, returns READ_INVALID. If all ships have been read, returns
+// READ_DONE, otherwise returns READ_LENGTHS.
+RuleReadState read_ship_length(char* line, int* numRead, Rules* rules) {
+    
+    char* err;
+    int length = strtol(line, &err, 10);
+
+    if (err == line || *err != '\0' || length < MIN_SHIP_SIZE) {
+        return READ_INVALID;
+    }
+    
+    if (rules->shipLengths) {
+        rules->shipLengths = realloc(rules->shipLengths, 
+                sizeof(int) * (*numRead + 1));
+    } else {
+        rules->shipLengths = malloc(sizeof(int) * (*numRead + 1));
+    }
+    rules->shipLengths[*numRead] = length;
+    *numRead += 1;
+
+    if (rules->numShips == *numRead) {
+        return READ_DONE;
+    }
+    return READ_LENGTHS;
+}
+
+// Attempts to read the rules file at the given filepath.
+// Updates the provided rules to contain the read information.
+// If an error occurs while reading, returns the appropriate
+// error code, otherwise returns ERR_OK.
+void read_rules_file(char* filepath, Rules* rules) {
+    
+    FILE* infile = fopen(filepath, "r");
+    if (!infile && !strcmp(filepath, STD_RULES_FILE)) {
+        Rules stdRules = standard_rules();
+        memcpy(rules, &stdRules, sizeof(Rules));
+        return;
+    }
+
+    RuleReadState state = READ_DIMS;
+    char* next;
+    int shipLengthsRead = 0;
+    rules->shipLengths = NULL;
+
+    while ((next = read_line(infile)) != NULL) {
+        strtrim(next);
+        if (is_comment(next)) {
+            free(next);
+            continue;
+        }
+        if (state == READ_DIMS) {
+            state = read_dimensions(next, rules);
+        } else if (state == READ_SHIPS) {
+            state = read_num_ships(next, rules);
+        } else if (state == READ_LENGTHS) {
+            state = read_ship_length(next, &shipLengthsRead, rules);
+        } else if (state == READ_DONE) {
+            free(next); 
+            continue;
+        } else if (state == READ_INVALID) {
+            free(next);
+            break;
+        }
+        free(next);
+    }
+    fclose(infile);
+}
+
+/**
+ * Read the config file in the hub.
+ *
+ * filepath (char*): the filepath of the config
+ * info (GameInfo*): the info to be modified
+ *
+ */
+void read_config_file(char* filepath, GameInfo* info) {
+    FILE* infile = fopen(filepath, "r");
+    char* line;
+    
+    while ((line = read_line(infile)) != NULL) {
+        strtrim(line);
+        if (is_comment(line)) {
+            free(line);
+            continue;
+        } else {
+            info->agents[0].programPath = "./2310A";
+            info->agents[0].mapPath = "map1.txt";
+            info->agents[1].programPath = "./2310B";
+            info->agents[1].mapPath = "map2.txt";
+            break;
+        }
     }
 }
