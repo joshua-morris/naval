@@ -306,7 +306,7 @@ bool read_map_file(char* filepath, Map* map) {
     }
     fclose(infile);
     memcpy(map, &newMap, sizeof(Map));
-    return true;;
+    return true;
 }
 
 /**
