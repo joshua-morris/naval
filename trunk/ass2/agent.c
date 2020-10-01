@@ -185,6 +185,7 @@ void send_map_message(Map map) {
                 map.ships[ship].pos.row + 1, map.ships[ship].dir);
     }
     printf("\n");
+    fflush(stdout);
 }
 
 /**

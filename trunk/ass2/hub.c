@@ -27,16 +27,34 @@ typedef enum {
  * Send the RULES message to an agent.
  *
  * rules (Rules): the rules to be sent
- * fileout (FILE*): the input for the agent
+ * stream (FILE*): the input stream for the agent
  *
  */
-void send_rules_message(Rules rules, FILE* fileout) {
-    fprintf(fileout, "RULES %d,%d,%d", rules.numCols, rules.numRows, 
+void send_rules_message(Rules rules, FILE* stream) {
+    fprintf(stream, "RULES %d,%d,%d", rules.numCols, rules.numRows, 
             rules.numShips);
     for (int i = 0; i < rules.numShips; i++) {
-        fprintf(fileout, ",%d", rules.shipLengths[i]);
+        fprintf(stream, ",%d", rules.shipLengths[i]);
     }
-    fprintf(fileout, "\n");
+    fprintf(stream, "\n");
+    fflush(stream);
+}
+
+/**
+ * Read the MAP message from an agent.
+ *
+ * map (HitMap*): the map to update
+ * stream (FILE*): the stream to read from
+ *
+ * Returns NORMAL on success otherwise a COMM_ERR.
+ *
+ */
+HubStatus read_map_message(HitMap* map, FILE* stream) {
+    char* line;
+    if ((line = read_line(stream)) == NULL) {
+        return COMM_ERR;
+    }
+    return NORMAL;
 }
 
 /**
@@ -58,7 +76,6 @@ HubStatus create_child(int id, int round, Agent* agent) {
         return AGENT_ERR;
     }
 
-    fcntl(pipeErr[PIPE_WRITE], F_SETFD, FD_CLOEXEC);
     if ((pid = fork()) < 0) {
         return AGENT_ERR;
     }
@@ -168,22 +185,28 @@ void hub_exit(HubStatus err) {
  * state (GameState*): the state of the game
  *
  */
-void play_game(GameState* state) {
+HubStatus play_game(GameState* state) {
     HubPlayState playState = READ_MAPS;
+    HubStatus status = NORMAL;
     // put this in a for loop for the rounds
     while (true) {
         for (int agent = 0; agent < NUM_AGENTS; agent++) {
             if (playState == READ_MAPS) {
                 send_rules_message(state->info.rules, 
                         state->info.agents[agent].in);
-                // read map message
+                if ((status = read_map_message(&state->maps[agent], 
+                        state->info.agents[agent].out)) != NORMAL) {
+                    return status;
+                }
                 // update hitmaps
+                playState = PLAY_TURN;
             } else if (playState == PLAY_TURN) {
                 // get players input
             }
             // handle game over
         }
     }
+    return status;
 }
 
 int main(int argc, char** argv) {
@@ -200,7 +223,7 @@ int main(int argc, char** argv) {
     GameState state;
     state.info = info;
 
-    play_game(&state);
+    status = play_game(&state);
 
     struct sigaction sa;
     sa.sa_handler = handle_sighup;
