@@ -35,4 +35,5 @@ void make_guess(HitMap* hitMap) {
     } else {
         printf("%c%d\n", (topMost % hitMap->cols) + 'A', row + 1);
     }
+    fflush(stdout);
 }
