@@ -91,10 +91,15 @@ PlayReadState read_hit_message(AgentState* state, char* message, HitType hit) {
         return READ_ERR;
     }
     Position pos = new_position(col, row);
+
+    char data = hit;
+    if (hit == HIT_SUNK) {
+        data = HIT_HIT;
+    }
     if (id == 1) {
-        update_hitmap(&state->hitMaps[1], pos, hit);
+        update_hitmap(&state->hitMaps[1], pos, data);
     } else if (id == 2) {
-        update_hitmap(&state->hitMaps[0], pos, hit);
+        update_hitmap(&state->hitMaps[0], pos, data);
     }
 
     if (hit == HIT_HIT) {
@@ -109,7 +114,7 @@ PlayReadState read_hit_message(AgentState* state, char* message, HitType hit) {
     } else if (hit == HIT_MISS) {
         fprintf(stderr, "MISS ");
     }
-    fprintf(stderr, "Player %d guessed %c%d\n", id, col, row);
+    fprintf(stderr, "player %d guessed %c%d\n", id, col, row);
 
     if (state->agentShips == 0 || state->opponentShips == 0) {
         return wait_for_done();
@@ -253,12 +258,16 @@ PlayReadState read_hit(AgentState* state, char* next) {
  */
 AgentStatus play_game(AgentState* state) {
     PlayReadState readState = READ_PRINT;
-    AgentStatus status = NORMAL;
+    AgentStatus status = COMM_ERR;
 
     char* next;
     while (true) {
         if (readState == READ_PRINT) {
-            print_maps(state->hitMaps[0], state->hitMaps[1], stderr);
+            if (state->id == 1) {
+                print_maps(state->hitMaps[0], state->hitMaps[1], stderr);
+            } else if (state->id == 2) {
+                print_maps(state->hitMaps[1], state->hitMaps[0], stderr);
+            }
             readState = state->id == 1 ? READ_INPUT : READ_HIT;
         }
 
