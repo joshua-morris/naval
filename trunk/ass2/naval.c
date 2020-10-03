@@ -114,11 +114,7 @@ bool position_in_bounds(Rules rules, Position pos) {
     return withinVerticalBounds && withinHorizontalBounds;
 }
 
-// Checks if the given positions are the same. 
-// Returns true if they are, else returns false
-bool positions_equal(Position p1, Position p2) {
-    return p1.row == p2.row && p1.col == p2.col;
-}
+
 
 // Checks if the given ship is within bounds with the given set of rules.
 // Returns true if it is, else returns false.
@@ -208,49 +204,7 @@ ErrorCode validate_info(GameInfo info) {
 
 
 
-// Checks if the given target position will hit the given ship
-// Returns true if it will and updates index with the position
-// where the ship will be hit (i.e. 0 is the tip), else returns false. 
-bool is_ship_hit(Ship ship, Position pos, int* index) {
-    
-    Position currPos = ship.pos;
-    for (int i = 0; i < ship.length; i++) {
-        if (positions_equal(pos, currPos)) {
-            *index = i;
-            return true;
-        }
-        currPos = next_position_in_direction(currPos, ship.dir);
-    }
-    return false;
-}
 
-// Marks a hit for the given map position.
-// Returns the type of hit that was made (HIT, MISS, REHIT)
-HitType mark_ship_hit(HitMap* hitmap, Map* playerMap, Position pos) {
-    
-    char info = get_position_info(*hitmap, pos);
-    if (info == HIT_HIT || info == HIT_MISS) {
-        return HIT_REHIT;
-    }
-    for (int i = 0; i < playerMap->numShips; i++) {
-        int index;
-        if (is_ship_hit(playerMap->ships[i], pos, &index)) {
-            if (playerMap->ships[i].hits[index]) {
-                return HIT_REHIT;
-            } else {
-                playerMap->ships[i].hits[index] = 1;
-                update_hitmap(hitmap, pos, HIT_HIT);
-
-                if (ship_sunk(playerMap->ships[i])) {
-                    return HIT_SUNK;
-                }
-                return HIT_HIT;
-            }
-        }
-    }
-    update_hitmap(hitmap, pos, HIT_MISS);
-    return HIT_MISS;
-}
 
 // Prints the message corresponding to the given hit type.
 void print_hit_message(HitType type) {

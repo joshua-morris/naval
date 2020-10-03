@@ -65,6 +65,7 @@ typedef struct Map {
  * - mapPath: path to the agent's map
  * - programPath: path to the program the agent runs
  * - pid: process id of the agent
+ * - map: the map of the agent
  * - in: pipe in for the agent
  * - out: pipe out for the agent
  *
@@ -73,6 +74,7 @@ typedef struct Agent {
     char* mapPath;
     char* programPath;
     int pid;
+    Map map;
     FILE* in;
     FILE* out;
 } Agent;
@@ -172,9 +174,15 @@ void strtrim(char* string);
 HitMap empty_hitmap(int rows, int cols);
 void initialise_hitmaps(AgentState state);
 void update_hitmap(HitMap* map, Position pos, char data);
+HitType mark_ship_hit(HitMap* hitmap, Map* playerMap, Position pos);
 
 void print_maps(HitMap cpuMap, HitMap playerMap, FILE* out);
+void print_hitmap(HitMap map, FILE* stream, bool hideMisses);
 void mark_ships(HitMap* map, Map playerMap);
 void update_ship_lengths(Rules* rules, Map map);
+char* up_to_delim(char delim, char* line);
+
+void add_ship(Map* map, Ship ship);
+Ship new_ship(int length, Position pos, Direction dir);
 
 #endif

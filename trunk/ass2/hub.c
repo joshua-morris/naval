@@ -6,6 +6,8 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <fcntl.h>
+#include <string.h>
+#include <ctype.h>
 
 #define PIPE_READ 0
 #define PIPE_WRITE 1
@@ -27,31 +29,114 @@ typedef enum {
  * Send the RULES message to an agent.
  *
  * rules (Rules): the rules to be sent
- * stream (FILE*): the input stream for the agent
+ * agent (Agent*): the agent to send to
  *
  */
-void send_rules_message(Rules rules, FILE* stream) {
-    fprintf(stream, "RULES %d,%d,%d", rules.numCols, rules.numRows, 
+void send_rules_message(Rules rules, Agent* agent) {
+    fprintf(agent->in, "RULES %d,%d,%d", rules.numCols, rules.numRows, 
             rules.numShips);
     for (int i = 0; i < rules.numShips; i++) {
-        fprintf(stream, ",%d", rules.shipLengths[i]);
+        fprintf(agent->in, ",%d", rules.shipLengths[i]);
     }
-    fprintf(stream, "\n");
-    fflush(stream);
+    fprintf(agent->in, "\n");
+    fflush(agent->in);
+}
+
+/**
+ * Prompt the agent for a turn.
+ *
+ * agent (Agent): the agent to prompt
+ *
+ */
+void send_yt(Agent* agent) {
+    fprintf(agent->in, "YT\n");
+    fflush(agent->in);
 }
 
 /**
  * Read the MAP message from an agent.
  *
- * map (HitMap*): the map to update
+ * agent (Agent*): the state to update
+ * rules (Rules): the rules of the current game
  * stream (FILE*): the stream to read from
  *
  * Returns NORMAL on success otherwise a COMM_ERR.
  *
  */
-HubStatus read_map_message(HitMap* map, FILE* stream) {
+HubStatus read_map_message(Agent* agent, Rules rules, FILE* stream) {
     char* line;
-    if ((line = read_line(stream)) == NULL) {
+    if ((line = read_line(stream)) == NULL || !check_tag("MAP ", line)) {
+        return COMM_ERR;
+    }
+    line += strlen("MAP ");
+    for (int i = 0; i < rules.numShips; i++) {
+        int length = rules.shipLengths[i];
+        char col, direction;
+        int row;
+
+        int count = 0;
+        char next;
+        while ((next = *line) != '\0' && next != EOF) {
+            line++;
+            if (next == ' ' || next == ',') {
+                continue;
+            } else if (count == 0) {
+                if (!isalpha(next)) {
+                    return COMM_ERR;
+                }
+                col = next;
+                count++;
+            } else if (count == 1) {
+                if (!isdigit(next)) {
+                    return COMM_ERR;
+                }
+                row = next - '0';
+                count++;
+            } else if (count == 2) {
+                if (!isalpha(next)) {
+                    return COMM_ERR;
+                }
+                direction = next;
+                if (i == rules.numShips - 1) {
+                    break; // we don't need to find a ':'
+                }
+                while ((next = *line++) != ':') {
+                    if (next != ' ') {
+                        return COMM_ERR;
+                    }
+                }
+                break;
+            }
+        }
+        add_ship(&agent->map, new_ship(length, new_position(col, row), 
+                direction));
+    }
+    return NORMAL;
+}
+
+/**
+ * Read a GUESS message from the agent.
+ *
+ * hitMap (HitMap*): the hitmap to update
+ * map (Map*): the map to check
+ * stream (FILE*): the input stream
+ *
+ * The status of the hub NORMAL if successful.
+ *
+ */
+HubStatus read_guess_message(HitMap* hitMap, Map* map, FILE* stream) {
+    char* line;
+    if ((line = read_line(stream)) == NULL || !check_tag("GUESS ", line)) {
+        return COMM_ERR;
+    }
+    line += strlen("GUESS ");
+
+    char col;
+    int row;
+    if (sscanf(line, "%c%d", &col, &row) != 2) {
+        return COMM_ERR;
+    }
+    if (mark_ship_hit(hitMap, map, new_position(col, row)) == HIT_REHIT) {
         return COMM_ERR;
     }
     return NORMAL;
@@ -189,19 +274,37 @@ HubStatus play_game(GameState* state) {
     HubPlayState playState = READ_MAPS;
     HubStatus status = NORMAL;
     // put this in a for loop for the rounds
+    int round = 0;
     while (true) {
         for (int agent = 0; agent < NUM_AGENTS; agent++) {
             if (playState == READ_MAPS) {
                 send_rules_message(state->info.rules, 
-                        state->info.agents[agent].in);
-                if ((status = read_map_message(&state->maps[agent], 
+                        &state->info.agents[agent]);
+                if ((status = read_map_message(&state->info.agents[agent], 
+                        state->info.rules, 
                         state->info.agents[agent].out)) != NORMAL) {
                     return status;
                 }
-                // update hitmaps
-                playState = PLAY_TURN;
+                state->maps[agent] = empty_hitmap(state->info.rules.numRows, 
+                        state->info.rules.numCols);
+                update_ship_lengths(&state->info.rules, 
+                        state->info.agents[agent].map);
+                mark_ships(&state->maps[agent], state->info.agents[agent].map);
+                if (agent == NUM_AGENTS - 1) {
+                    playState = PLAY_TURN;
+                }
             } else if (playState == PLAY_TURN) {
-                // get players input
+                printf("**********\n");
+                printf("Round %d\n", round);
+                print_hitmap(state->maps[0], stdout, true);
+                printf("===\n");
+                print_hitmap(state->maps[1], stdout, true);
+                fflush(stdout);
+                
+                send_yt(&state->info.agents[agent]);
+                read_guess_message(&state->maps[agent], 
+                        &state->info.agents[agent].map, 
+                        state->info.agents[agent].out);
             }
             // handle game over
         }

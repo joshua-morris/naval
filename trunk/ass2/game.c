@@ -496,6 +496,78 @@ void mark_ships(HitMap* map, Map playerMap) {
     }
 }
 
+/** 
+ * Checks if the given positions are the same. 
+ *
+ * p1 (Position): first position to compare
+ * p2 (Position): second position to compare
+ *
+ * Returns true if they are, else returns false
+ *
+ */
+bool positions_equal(Position p1, Position p2) {
+    return p1.row == p2.row && p1.col == p2.col;
+}
+
+/**
+ * Checks if the given target position will hit the given ship
+ * ship (Ship): ship to be hit
+ * pos (Position): position to check
+ * index (int*): the index of the ship
+ *
+ * Returns true if it will and updates index with the position
+ * where the ship will be hit (i.e. 0 is the tip), else returns false. 
+ *
+ */
+bool is_ship_hit(Ship ship, Position pos, int* index) {
+    
+    Position currPos = ship.pos;
+    for (int i = 0; i < ship.length; i++) {
+        if (positions_equal(pos, currPos)) {
+            *index = i;
+            return true;
+        }
+        currPos = next_position_in_direction(currPos, ship.dir);
+    }
+    return false;
+}
+
+/** 
+ * Marks a hit for the given map position.
+ *
+ * hitmap (HitMap*): the hitmap to modify
+ * playerMap (Map*): the player's map
+ * pos (Position): the position to hit
+ *
+ * Returns the type of hit that was made (HIT, MISS, REHIT)
+ *
+ */
+HitType mark_ship_hit(HitMap* hitmap, Map* playerMap, Position pos) {
+    
+    char info = get_position_info(*hitmap, pos);
+    if (info == HIT_HIT || info == HIT_MISS) {
+        return HIT_REHIT;
+    }
+    for (int i = 0; i < playerMap->numShips; i++) {
+        int index;
+        if (is_ship_hit(playerMap->ships[i], pos, &index)) {
+            if (playerMap->ships[i].hits[index]) {
+                return HIT_REHIT;
+            } else {
+                playerMap->ships[i].hits[index] = 1;
+                update_hitmap(hitmap, pos, HIT_HIT);
+
+                if (ship_sunk(playerMap->ships[i])) {
+                    return HIT_SUNK;
+                }
+                return HIT_HIT;
+            }
+        }
+    }
+    update_hitmap(hitmap, pos, HIT_MISS);
+    return HIT_MISS;
+}
+
 /**
  * Updates the length of the given ship.
  *
@@ -532,11 +604,7 @@ void update_ship_lengths(Rules* rules, Map map) {
  */
 void initialise_hitmaps(AgentState state) {
     update_ship_lengths(&state.rules, state.map);
-    if (state.id == 1) {
-        mark_ships(&state.hitMaps[0], state.map);
-    } else {
-        mark_ships(&state.hitMaps[1], state.map);
-    }
+    mark_ships(&state.hitMaps[state.id - 1], state.map);
 }
 
 /* Creates a new set of rules for a standard game */
@@ -684,4 +752,24 @@ void read_config_file(char* filepath, GameInfo* info) {
             break;
         }
     }
+}
+
+/**
+ * Find the contents up to a delimeter, modifies line.
+ *
+ * delim (char): the delimeter
+ * line (char*): line to read
+ *
+ * Returns the content up to the delimeter or null terminator.
+ *
+ */
+char* up_to_delim(char delim, char* line) {
+    char* result = malloc(sizeof(char));
+    int i = 0;
+    while (*line != '\0' && *line != delim) {
+        result[i] = *line;
+        result = realloc(result, sizeof(char) * ++i + 1);
+        line++;
+    }
+    return result;
 }
