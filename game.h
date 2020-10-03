@@ -139,7 +139,7 @@ typedef enum RuleReadState {
 
 /* The current state of the hub */
 typedef enum HubPlayState {
-    READ_MAPS, PLAY_TURN
+    READ_MAPS, PLAY_TURN, PLAY_DONE
 } HubPlayState;
 
 /* The types of hits that can occur */
@@ -185,5 +185,7 @@ char* up_to_delim(char delim, char* line);
 
 void add_ship(Map* map, Ship ship);
 Ship new_ship(int length, Position pos, Direction dir);
+
+bool all_ships_sunk(Map map);
 
 #endif

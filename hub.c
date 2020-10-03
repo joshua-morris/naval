@@ -321,11 +321,21 @@ HubStatus play_game(GameState* state) {
                         break;
                     }
                 }
+                if (all_ships_sunk(state->info.agents[agent].map)) {
+                    playState = PLAY_DONE;
+                }
                 if (agent == NUM_AGENTS - 1) {
                     print_hub_maps(state->maps[0], state->maps[1], round);
                 }
             }
-            // handle game over
+            
+            if (playState == PLAY_DONE) {
+                print_hub_maps(state->maps[0], state->maps[1], round);
+                fprintf(state->info.agents[0].in, "DONE %d", agent + 1);
+                fprintf(state->info.agents[1].in, "DONE %d", agent + 1);
+                printf("GAME OVER - player %d wins\n", agent + 1);
+                return NORMAL;
+            }
         }
     }
     return status;
