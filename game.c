@@ -439,6 +439,23 @@ void print_maps(HitMap cpuMap, HitMap playerMap, FILE* out) {
     print_hitmap(playerMap, out, false);
 }
 
+/** 
+ * Prints the given maps to the hub.
+ *
+ * playerOneMap (HitMap): the map for the first player
+ * playerTwoMap (HitMap): the map for the second player
+ * round (int): the round in the hub
+ *
+ */
+void print_hub_maps(HitMap playerOneMap, HitMap playerTwoMap, int round) {
+    printf("**********\n");
+    printf("Round %d\n", round);
+    print_hitmap(playerOneMap, stdout, false);
+    printf("===\n");
+    print_hitmap(playerTwoMap, stdout, false);
+    fflush(stdout);
+}
+
 /**
  * Find the next position in a given direction
  *

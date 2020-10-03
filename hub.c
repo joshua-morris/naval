@@ -26,6 +26,48 @@ typedef enum {
 } HubStatus;
 
 /**
+ *
+ */
+void kill_children() {
+
+}
+
+/**
+ * Print to standard error the error message and exit with exit status.
+ *
+ * err (HubStatus): The exit code to exit with.
+ *
+ * Exits with code `err`.
+ *
+ */
+void hub_exit(HubStatus err) {
+    switch (err) {
+        case INCORRECT_ARG_COUNT:
+            fprintf(stderr, "Usage: 2310hub rules config\n");
+            break;
+        case INVALID_RULES:
+            fprintf(stderr, "Error reading rules\n");
+            break;
+        case INVALID_CONFIG:
+            fprintf(stderr, "Error reading config\n");
+            break;
+        case AGENT_ERR:
+            fprintf(stderr, "Error starting agents\n");
+            break;
+        case COMM_ERR:
+            fprintf(stderr, "Communications error\n");
+            break;
+        case GOT_SIGHUP:
+            fprintf(stderr, "Caught SIGHUP\n");
+            break;
+        default:
+            break;
+    }
+    kill_children();
+    exit(err);
+}
+
+/**
  * Send the RULES message to an agent.
  *
  * rules (Rules): the rules to be sent
@@ -124,22 +166,41 @@ HubStatus read_map_message(Agent* agent, Rules rules, FILE* stream) {
  * The status of the hub NORMAL if successful.
  *
  */
-HubStatus read_guess_message(HitMap* hitMap, Map* map, FILE* stream) {
+HitType read_guess_message(HitMap* hitMap, GameInfo* info, int id) {
     char* line;
-    if ((line = read_line(stream)) == NULL || !check_tag("GUESS ", line)) {
-        return COMM_ERR;
+    if ((line = read_line(info->agents[id - 1].out)) == NULL 
+            || !check_tag("GUESS ", line)) {
+        hub_exit(COMM_ERR);
     }
     line += strlen("GUESS ");
 
     char col;
     int row;
     if (sscanf(line, "%c%d", &col, &row) != 2) {
-        return COMM_ERR;
+        hub_exit(COMM_ERR);
     }
-    if (mark_ship_hit(hitMap, map, new_position(col, row)) == HIT_REHIT) {
-        return COMM_ERR;
+    HitType hit = mark_ship_hit(hitMap, &info->agents[id - 1].map, 
+            new_position(col, row));
+    if (hit == HIT_HIT) {
+        fprintf(info->agents[id - 1].in, "OK\n");
+        fprintf(info->agents[0].in, "HIT %d,%c%d\n", id, col, row);
+        fprintf(info->agents[1].in, "HIT %d,%c%d\n", id, col, row);
+        fflush(info->agents[0].in);
+        fflush(info->agents[1].in);
+    } else if (hit == HIT_MISS) {
+        fprintf(info->agents[id - 1].in, "OK\n");
+        fprintf(info->agents[0].in, "MISS %d,%c%d\n", id, col, row);
+        fprintf(info->agents[1].in, "MISS %d,%c%d\n", id, col, row);
+        fflush(info->agents[0].in);
+        fflush(info->agents[1].in);
+    } else if (hit == HIT_SUNK) {
+        fprintf(info->agents[id - 1].in, "OK\n");
+        fprintf(info->agents[0].in, "SUNK %d,%c%d\n", id, col, row);
+        fprintf(info->agents[1].in, "SUNK %d,%c%d\n", id, col, row);
+        fflush(info->agents[0].in);
+        fflush(info->agents[1].in);
     }
-    return NORMAL;
+    return hit;
 }
 
 /**
@@ -218,50 +279,8 @@ HubStatus create_children(GameInfo* info) {
 /**
  *
  */
-void kill_children() {
-
-}
-
-/**
- *
- */
 void handle_sighup() {
 
-}
-
-/**
- * Print to standard error the error message and exit with exit status.
- *
- * err (HubStatus): The exit code to exit with.
- *
- * Exits with code `err`.
- *
- */
-void hub_exit(HubStatus err) {
-    switch (err) {
-        case INCORRECT_ARG_COUNT:
-            fprintf(stderr, "Usage: 2310hub rules config\n");
-            break;
-        case INVALID_RULES:
-            fprintf(stderr, "Error reading rules\n");
-            break;
-        case INVALID_CONFIG:
-            fprintf(stderr, "Error reading config\n");
-            break;
-        case AGENT_ERR:
-            fprintf(stderr, "Error starting agents\n");
-            break;
-        case COMM_ERR:
-            fprintf(stderr, "Communications error\n");
-            break;
-        case GOT_SIGHUP:
-            fprintf(stderr, "Caught SIGHUP\n");
-            break;
-        default:
-            break;
-    }
-    kill_children();
-    exit(err);
 }
 
 /**
@@ -291,20 +310,20 @@ HubStatus play_game(GameState* state) {
                         state->info.agents[agent].map);
                 mark_ships(&state->maps[agent], state->info.agents[agent].map);
                 if (agent == NUM_AGENTS - 1) {
+                    print_hub_maps(state->maps[0], state->maps[1], round);
                     playState = PLAY_TURN;
                 }
             } else if (playState == PLAY_TURN) {
-                printf("**********\n");
-                printf("Round %d\n", round);
-                print_hitmap(state->maps[0], stdout, true);
-                printf("===\n");
-                print_hitmap(state->maps[1], stdout, true);
-                fflush(stdout);
-                
-                send_yt(&state->info.agents[agent]);
-                read_guess_message(&state->maps[agent], 
-                        &state->info.agents[agent].map, 
-                        state->info.agents[agent].out);
+                while (true) {
+                    send_yt(&state->info.agents[agent]);
+                    if (read_guess_message(&state->maps[agent], 
+                            &state->info, agent + 1) != HIT_REHIT) {
+                        break;
+                    }
+                }
+                if (agent == NUM_AGENTS - 1) {
+                    print_hub_maps(state->maps[0], state->maps[1], round);
+                }
             }
             // handle game over
         }
