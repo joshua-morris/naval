@@ -91,7 +91,11 @@ PlayReadState read_hit_message(AgentState* state, char* message, HitType hit) {
         return READ_ERR;
     }
     Position pos = new_position(col, row);
-    update_hitmap(&state->hitMaps[id - 1], pos, hit);
+    if (id == 1) {
+        update_hitmap(&state->hitMaps[1], pos, hit);
+    } else if (id == 2) {
+        update_hitmap(&state->hitMaps[0], pos, hit);
+    }
 
     if (hit == HIT_HIT) {
         fprintf(stderr, "HIT ");
@@ -202,8 +206,11 @@ PlayReadState read_input(AgentState* state, char* next) {
         if (check_tag("OK", next)) {
             return READ_HIT;
         } else if (check_tag("YT", next)) {
-            int opponentBoard = (state->id - 1) ^ 1; // off by 1 and flip bit
-            make_guess(&state->hitMaps[opponentBoard]);
+            if (state->id == 1) {
+                make_guess(&state->hitMaps[1]);
+            } else {
+                make_guess(&state->hitMaps[0]);
+            }            
         } else {
             return READ_ERR;
         }

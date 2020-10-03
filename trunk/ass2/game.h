@@ -178,6 +178,7 @@ HitType mark_ship_hit(HitMap* hitmap, Map* playerMap, Position pos);
 
 void print_maps(HitMap cpuMap, HitMap playerMap, FILE* out);
 void print_hitmap(HitMap map, FILE* stream, bool hideMisses);
+void print_hub_maps(HitMap playerOneMap, HitMap playerTwoMap, int round);
 void mark_ships(HitMap* map, Map playerMap);
 void update_ship_lengths(Rules* rules, Map map);
 char* up_to_delim(char delim, char* line);
