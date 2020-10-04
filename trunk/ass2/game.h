@@ -165,7 +165,7 @@ typedef enum PlayReadState {
 /* File parsing */
 bool read_map_file(char* filepath, Map* map);
 HubStatus read_rules_file(char* filepath, Rules* rules);
-void read_config_file(char* filepath, GameInfo* info);
+HubStatus read_config_file(char* filepath, GameInfo* info);
 
 HubStatus validate_info(GameInfo info);
 GameState init_game(GameInfo info);
@@ -175,15 +175,15 @@ void free_agent_state(AgentState* state);
 void free_game(GameState* state);
 
 /* Util */
-char* read_line(FILE* stream);
 Position new_position(char col, int row);
+char* read_line(FILE* stream);
 bool check_tag(char* tag, char* line);
 void strtrim(char* string);
 
 /* Hit maps */
-HitMap empty_hitmap(int rows, int cols);
 void initialise_hitmaps(AgentState state);
 void update_hitmap(HitMap* map, Position pos, char data);
+HitMap empty_hitmap(int rows, int cols);
 HitType mark_ship_hit(HitMap* hitmap, Map* playerMap, Position pos);
 
 void print_maps(HitMap cpuMap, HitMap playerMap, FILE* out);
