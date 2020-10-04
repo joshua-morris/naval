@@ -179,6 +179,7 @@ Position new_position(char col, int row);
 char* read_line(FILE* stream);
 bool check_tag(char* tag, char* line);
 void strtrim(char* string);
+bool validate_ship_info(char col, char row, char dir);
 
 /* Hit maps */
 void initialise_hitmaps(AgentState state);
@@ -191,7 +192,6 @@ void print_hitmap(HitMap map, FILE* stream, bool hideMisses);
 void print_hub_maps(HitMap playerOneMap, HitMap playerTwoMap, int round);
 void mark_ships(HitMap* map, Map playerMap);
 void update_ship_lengths(Rules* rules, Map map);
-char* up_to_delim(char delim, char* line);
 
 void add_ship(Map* map, Ship ship);
 Ship new_ship(int length, Position pos, Direction dir);

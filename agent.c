@@ -76,7 +76,6 @@ PlayReadState wait_for_done() {
  *
  */
 PlayReadState read_hit_message(AgentState* state, char* message, HitType hit) {
-    // remove tag
     if (hit == HIT_HIT) {
         message += strlen("HIT ");
     } else if (hit == HIT_SUNK) {
@@ -91,7 +90,6 @@ PlayReadState read_hit_message(AgentState* state, char* message, HitType hit) {
         return READ_ERR;
     }
     Position pos = new_position(col, row);
-
     char data = hit;
     if (hit == HIT_SUNK) {
         data = HIT_HIT;
@@ -314,7 +312,8 @@ int main(int argc, char** argv) {
 
     // read and validate the player seed
     int seed;
-    if (sscanf(argv[3], "%d", &seed) != 1) {
+    char dummy;
+    if (sscanf(argv[3], "%d %c", &seed, &dummy) != 1) {
         agent_exit(INVALID_SEED);
     }
 

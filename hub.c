@@ -107,30 +107,22 @@ HubStatus read_map_message(Map* map, FILE* stream) {
         free(line);
         return COMM_ERR;
     }
-
     Map newMap = empty_map();
     int index = 0; // where we are in the line
     index += strlen("MAP ");
     while (true) {
         int count = 0;
-        while (line[index] != '\0') {
-            int row;
-            char col, direction;
+        while (line[index] != '\0') { // until we reach the end of the line
+            char col, row, direction;
             if (line[index] == ' ') {
                 index++;
                 continue;
             }
-            if (count == 0) {
-                if (!isalpha(line[index])) {
-                    return COMM_ERR;
-                }
+            if (count == 0) { // looking for the column
                 col = line[index++];
                 count++;
-            } else if (count == 1) {
-                if (!isdigit(line[index])) {
-                    return COMM_ERR;
-                }
-                row = line[index++] - '0';
+            } else if (count == 1) { // looking for the row
+                row = line[index++];
                 while (line[index] != ',') {
                     if (!isspace(line[index])) {
                         return COMM_ERR;
@@ -140,12 +132,12 @@ HubStatus read_map_message(Map* map, FILE* stream) {
                 index++;
                 count++;
             } else if (count == 2) {
-                if (!isalpha(line[index])) {
+                direction = line[index++];
+                if (!validate_ship_info(col, row, direction)) {
                     return COMM_ERR;
                 }
-                direction = line[index++];
-                add_ship(&newMap, new_ship(0, new_position(col, row), 
-                        (Direction) direction));
+                add_ship(&newMap, new_ship(0, new_position(col, 
+                        (int) row - '0'), (Direction) direction));
                 count++;
             } else if (line[index] == ':') {
                 index++;
@@ -188,10 +180,10 @@ HitType read_guess_message(HitMap* hitMap, GameInfo* info, int id) {
     HitType hit;
     if (id == 1) {
         hit = mark_ship_hit(hitMap, &info->agents[1].map, 
-            new_position(col, row));
+                new_position(col, row));
     } else if (id == 2) {
         hit = mark_ship_hit(hitMap, &info->agents[0].map, 
-            new_position(col, row));
+                new_position(col, row));
     }
     
     if (hit == HIT_HIT) {
@@ -343,10 +335,17 @@ int main(int argc, char** argv) {
     GameInfo info;
     HubStatus status;
 
+    struct sigaction sa;
+    sa.sa_handler = handle_sighup;
+    sigaction(SIGHUP, &sa, 0);
+
     if ((status = read_rules_file(argv[1], &info.rules)) != NORMAL) {
         hub_exit(status, NULL);
     }
-    read_config_file(argv[2], &info); // validate
+
+    if ((status = read_config_file(argv[2], &info)) != NORMAL) {
+        hub_exit(status, NULL);
+    }
 
 
     if ((status = create_children(&info)) != NORMAL) {
@@ -370,10 +369,6 @@ int main(int argc, char** argv) {
     globalState = &state;
 
     status = play_game(&state);
-
-    struct sigaction sa;
-    sa.sa_handler = handle_sighup;
-    sigaction(SIGHUP, &sa, 0);
 
     hub_exit(status, &state);
 }
