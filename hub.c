@@ -144,7 +144,8 @@ HubStatus read_map_message(Map* map, FILE* stream) {
                     return COMM_ERR;
                 }
                 direction = line[index++];
-                add_ship(&newMap, new_ship(0, new_position(col, row), (Direction) direction));
+                add_ship(&newMap, new_ship(0, new_position(col, row), 
+                        (Direction) direction));
                 count++;
             } else if (line[index] == ':') {
                 index++;
@@ -190,18 +191,21 @@ HitType read_guess_message(HitMap* hitMap, GameInfo* info, int id) {
         fprintf(info->agents[id - 1].in, "OK\n");
         fprintf(info->agents[0].in, "HIT %d,%c%d\n", id, col, row);
         fprintf(info->agents[1].in, "HIT %d,%c%d\n", id, col, row);
+        printf("HIT player %d guessed %c%d\n", id, col, row);
         fflush(info->agents[0].in);
         fflush(info->agents[1].in);
     } else if (hit == HIT_MISS) {
         fprintf(info->agents[id - 1].in, "OK\n");
         fprintf(info->agents[0].in, "MISS %d,%c%d\n", id, col, row);
         fprintf(info->agents[1].in, "MISS %d,%c%d\n", id, col, row);
+        printf("MISS player %d guessed %c%d\n", id, col, row);
         fflush(info->agents[0].in);
         fflush(info->agents[1].in);
     } else if (hit == HIT_SUNK) {
         fprintf(info->agents[id - 1].in, "OK\n");
         fprintf(info->agents[0].in, "SUNK %d,%c%d\n", id, col, row);
         fprintf(info->agents[1].in, "SUNK %d,%c%d\n", id, col, row);
+        printf("SHIP SUNK player %d guessed %c%d\n", id, col, row);
         fflush(info->agents[0].in);
         fflush(info->agents[1].in);
     }
@@ -272,7 +276,11 @@ HubStatus create_child(int id, int round, Agent* agent) {
 }
 
 /**
+ * Create child processes for each agent.
  *
+ * info (GameInfo*): the game info, contains information about the processes
+ *
+ * Returns NORMAL On success otherwise an AGENT_ERR.
  */
 HubStatus create_children(GameInfo* info) {
     if (create_child(1, 0, &info->agents[0]) == AGENT_ERR ||   
@@ -298,6 +306,7 @@ void handle_sighup() {
 HubStatus play_game(GameState* state) {
     // put this in a for loop for the rounds
     int round = 0;
+    print_hub_maps(state->maps[0], state->maps[1], round);
     while (true) {
         for (int agent = 0; agent < NUM_AGENTS; agent++) {
             while (true) {

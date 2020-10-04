@@ -22,7 +22,6 @@
  *
  */
 char* read_line(FILE* stream) {
-    
     int bufferSize = INITIAL_BUFFER_SIZE;
     char* buffer = malloc(sizeof(char) * bufferSize);
     int numRead = 0;
@@ -448,7 +447,7 @@ void print_maps(HitMap cpuMap, HitMap playerMap, FILE* out) {
  */
 void print_hub_maps(HitMap playerOneMap, HitMap playerTwoMap, int round) {
     printf("**********\n");
-    printf("Round %d\n", round);
+    printf("ROUND %d\n", round);
     print_hitmap(playerOneMap, stdout, false);
     printf("===\n");
     print_hitmap(playerTwoMap, stdout, false);
@@ -743,20 +742,24 @@ HubStatus read_rules_file(char* filepath, Rules* rules) {
     return NORMAL;
 }
 
-void read_config_line(char* line, GameInfo* info) {
-    int index = 0;
+char* config_read_to(char delim, char* line) {
+    int bufferSize = INITIAL_BUFFER_SIZE;
+    char* buffer = malloc(sizeof(char) * bufferSize);
+    int numRead = 0;
 
-    int count = 0;
-    while (line[index] != '\0') {
-        if (isspace(line[index])) {
-            index++;
-            continue;
-        } else if (line[index] == ',') {
-            count++;
-            index++;
-            continue;
+    while (1) {
+        if (numRead == bufferSize - 1) {
+            bufferSize *= 2;
+            buffer = realloc(buffer, sizeof(char) * bufferSize);
         }
+        if (line[numRead] == '\0' || line[numRead] == delim) {
+            buffer[numRead] = '\0';
+            break;
+        }
+        buffer[numRead] = line[numRead];
+        numRead++;
     }
+    return buffer;
 }
 
 /**
@@ -766,7 +769,7 @@ void read_config_line(char* line, GameInfo* info) {
  * info (GameInfo*): the info to be modified
  *
  */
-void read_config_file(char* filepath, GameInfo* info) {
+HubStatus read_config_file(char* filepath, GameInfo* info) {
     FILE* infile = fopen(filepath, "r");
     char* line;
     
@@ -775,15 +778,47 @@ void read_config_file(char* filepath, GameInfo* info) {
         if (is_comment(line)) {
             free(line);
             continue;
+        }
+        break;
+    }
+
+    int count = 0;
+    int index = 0;
+        while (true) {
+        if (count == 0) {
+            char* current = config_read_to(',', line + index);
+            index += strlen(current) + 1;
+            strtrim(current);
+            info->agents[0].programPath = malloc(sizeof(current));
+            strcpy(info->agents[0].programPath, current);
+            count++;
+        } else if (count == 1) {
+            char* current = config_read_to(',', line + index);
+            index += strlen(current) + 1;
+            strtrim(current);
+            info->agents[0].mapPath = malloc(sizeof(current));
+            strcpy(info->agents[0].mapPath, current);
+            count++;
+        } else if (count == 2) {
+            char* current = config_read_to(',', line + index);
+            index += strlen(current) + 1;
+            strtrim(current);
+            info->agents[1].programPath = malloc(sizeof(current));
+            strcpy(info->agents[1].programPath, current);
+            count++;
+        } else if (count == 3) {
+            char* current = config_read_to('\0', line + index);
+            index += strlen(current) + 1;
+            strtrim(current);
+            info->agents[1].mapPath = malloc(sizeof(current));
+            strcpy(info->agents[1].mapPath, current);
+            count++;
         } else {
-            info->agents[0].programPath = "./2310A";
-            info->agents[0].mapPath = "map1.txt";
-            info->agents[1].programPath = "./2310B";
-            info->agents[1].mapPath = "map2.txt";
             break;
         }
     }
     free(line);
+    return NORMAL;
 }
 
 /**
@@ -811,6 +846,8 @@ void free_agent(Agent* agent) {
 }
 
 // Frees all memory associated with the given game information.
+
+
 void free_game_info(GameInfo* info) {
     free_rules(&info->rules);
     free_map(&info->agents[0].map);
@@ -818,6 +855,8 @@ void free_game_info(GameInfo* info) {
 }
 
 // Frees all memory associated with the given game state.
+
+
 void free_game(GameState* state) {
     free_game_info(&state->info);
     free_hitmap(&state->maps[0]);
@@ -826,6 +865,8 @@ void free_game(GameState* state) {
 
 // Checks if the given position is within bounds with the given set of rules.
 // Returns true if it is, else returns false.
+
+
 bool position_in_bounds(Rules rules, Position pos) {
 
     bool withinVerticalBounds = pos.row >= 0 && pos.row < rules.numRows;
@@ -835,6 +876,8 @@ bool position_in_bounds(Rules rules, Position pos) {
 
 // Checks if the given ship is within bounds with the given set of rules.
 // Returns true if it is, else returns false.
+
+
 bool ship_within_bounds(Rules rules, Ship ship) {
     
     Position currentPos = ship.pos;
@@ -849,6 +892,8 @@ bool ship_within_bounds(Rules rules, Ship ship) {
 
 // Checks if the two given ships overlap.
 // Returns true if they do, else returns false.
+
+
 bool ships_overlap(Ship s1, Ship s2) {
     
     Position currPos1 = s1.pos;
@@ -869,6 +914,8 @@ bool ships_overlap(Ship s1, Ship s2) {
 // If the game information is invalid, returns the appropriate error
 // code. Otherwise returns ERR_OK and merges the game rules into the 
 // player maps.
+
+
 HubStatus validate_info(GameInfo info) {
     
     // Check that enough ships were read
@@ -919,6 +966,8 @@ HubStatus validate_info(GameInfo info) {
 
 // Initialises and returns a new game using the given
 // command line arguments and game information.
+
+
 GameState init_game(GameInfo info) {
     
     GameState newGame;
