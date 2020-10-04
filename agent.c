@@ -16,7 +16,7 @@
  */
 void agent_exit(AgentStatus err) {
     switch (err) {
-        case INCORRECT_ARG_COUNT:
+        case AGENT_INCORRECT_ARG_COUNT:
             fprintf(stderr, "Usage: agent id map seed\n");
             break;
         case INVALID_ID:
@@ -28,7 +28,7 @@ void agent_exit(AgentStatus err) {
         case INVALID_SEED:
             fprintf(stderr, "Invalid seed\n");
             break;
-        case COMM_ERR:
+        case AGENT_COMM_ERR:
             fprintf(stderr, "Communications error\n");
             break;
         default:
@@ -135,8 +135,8 @@ PlayReadState read_hit_message(AgentState* state, char* message, HitType hit) {
  * rules (Rules*): The rules struct to be modified.
  * message (char*): The RULES message to read.
  *
- * Returns NORMAL if successful, otherwise returns a communication error 
- * (COMM_ERR).
+ * Returns AGENT_NORMAL if successful, otherwise returns a communication error 
+ * (AGENT_COMM_ERR).
  *
  */
 AgentStatus read_rules_message(Rules* rules, char* message) {
@@ -145,7 +145,7 @@ AgentStatus read_rules_message(Rules* rules, char* message) {
     int width, height, numShips;
 
     if (sscanf(message, "%d,%d,%d", &width, &height, &numShips) != 3) {
-        agent_exit(COMM_ERR);
+        agent_exit(AGENT_COMM_ERR);
     }
 
     int count = 0; // skipping past the first three commas
@@ -163,19 +163,19 @@ AgentStatus read_rules_message(Rules* rules, char* message) {
             index++;
         } else {
             if (sscanf(message, "%d", &rules->shipLengths[index]) != 1) {
-                agent_exit(COMM_ERR);
+                agent_exit(AGENT_COMM_ERR);
             }
         }
         message++;
     }
     if (index != numShips - 1) {
-        agent_exit(COMM_ERR);
+        agent_exit(AGENT_COMM_ERR);
     }
 
     rules->numRows = height;
     rules->numCols = width;
     rules->numShips = numShips;
-    return NORMAL;
+    return AGENT_NORMAL;
 }
 
 /**
@@ -253,12 +253,12 @@ PlayReadState read_hit(AgentState* state, char* next) {
  * map (Map*): the current agent's map
  * rules (Rules*): the rules of the current game
  *
- * Returns NORMAL on success or a COMM_ERR.
+ * Returns AGENT_NORMAL on success or a AGENT_COMM_ERR.
  *
  */
 AgentStatus play_game(AgentState* state) {
     PlayReadState readState = READ_PRINT;
-    AgentStatus status = COMM_ERR;
+    AgentStatus status = AGENT_COMM_ERR;
 
     char* next;
     while (true) {
@@ -282,12 +282,12 @@ AgentStatus play_game(AgentState* state) {
         }
 
         if (readState == READ_ERR) {
-            status = COMM_ERR;
+            status = AGENT_COMM_ERR;
             break;
         } else if (readState == READ_DONE_ONE || readState == READ_DONE_TWO) {
             int id = readState == READ_DONE_ONE ? 1 : 2;
             fprintf(stderr, "GAME OVER - player %d wins\n", id);
-            status = NORMAL;
+            status = AGENT_NORMAL;
             break;
         }
         free(next);
@@ -298,7 +298,7 @@ AgentStatus play_game(AgentState* state) {
 
 int main(int argc, char** argv) {
     if (argc != 4) {
-        agent_exit(INCORRECT_ARG_COUNT);
+        agent_exit(AGENT_INCORRECT_ARG_COUNT);
     }
     AgentState state;
     // read and validate the player id
@@ -320,10 +320,10 @@ int main(int argc, char** argv) {
 
     char* next;
     if ((next = read_line(stdin)) == NULL) {
-        agent_exit(COMM_ERR);
+        agent_exit(AGENT_COMM_ERR);
     }
-    if (read_rules_message(&state.rules, next) == COMM_ERR) {
-        agent_exit(COMM_ERR);
+    if (read_rules_message(&state.rules, next) == AGENT_COMM_ERR) {
+        agent_exit(AGENT_COMM_ERR);
     }
     send_map_message(state.map);
     free(next);

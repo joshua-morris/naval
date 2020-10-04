@@ -95,13 +95,7 @@ ErrorCode check_arguments(Args args) {
 
 // GAME INFO VALIDATION =======================================================
 
-// Frees all memory associated with the given game information.
-void free_game_info(GameInfo* info) {
-    
-    free_rules(&info->rules);
-    free_map(&info->playerMap);
-    free_map(&info->cpuMap);
-}
+
 
 
 
@@ -382,17 +376,7 @@ ErrorCode run_game(GameState state) {
     return ERR_OK;
 }
 
-// Frees all memory associated with the given game state.
-void free_game(GameState* state) {
-    
-    free_game_info(&state->info);
-    free_hitmap(&state->maps[0]);
-    free_hitmap(&state->maps[1]);
-    if (state->inputs[PLR_CPU]) {
-        fclose(state->inputs[PLR_CPU]);
-        state->inputs[PLR_CPU] = NULL;
-    }
-}
+
 
 // Initialises and returns a new game using the given
 // command line arguments and game information.
