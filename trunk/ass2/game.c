@@ -160,7 +160,6 @@ void free_ship(Ship* ship) {
  *
  */
 Map empty_map(void) {
-
     Map newMap = {NULL, 0};
     return newMap;
 }
@@ -707,15 +706,9 @@ RuleReadState read_ship_length(char* line, int* numRead, Rules* rules) {
 // Updates the provided rules to contain the read information.
 // If an error occurs while reading, returns the appropriate
 // error code, otherwise returns ERR_OK.
-void read_rules_file(char* filepath, Rules* rules) {
+HubStatus read_rules_file(char* filepath, Rules* rules) {
     
     FILE* infile = fopen(filepath, "r");
-    if (!infile && !strcmp(filepath, STD_RULES_FILE)) {
-        Rules stdRules = standard_rules();
-        memcpy(rules, &stdRules, sizeof(Rules));
-        return;
-    }
-
     RuleReadState state = READ_DIMS;
     char* next;
     int shipLengthsRead = 0;
@@ -743,6 +736,27 @@ void read_rules_file(char* filepath, Rules* rules) {
         free(next);
     }
     fclose(infile);
+
+    if (state != READ_DONE) {
+        return INVALID_RULES;
+    }
+    return NORMAL;
+}
+
+void read_config_line(char* line, GameInfo* info) {
+    int index = 0;
+
+    int count = 0;
+    while (line[index] != '\0') {
+        if (isspace(line[index])) {
+            index++;
+            continue;
+        } else if (line[index] == ',') {
+            count++;
+            index++;
+            continue;
+        }
+    }
 }
 
 /**
@@ -769,6 +783,7 @@ void read_config_file(char* filepath, GameInfo* info) {
             break;
         }
     }
+    free(line);
 }
 
 /**
@@ -789,4 +804,131 @@ char* up_to_delim(char delim, char* line) {
         line++;
     }
     return result;
+}
+
+void free_agent(Agent* agent) {
+    
+}
+
+// Frees all memory associated with the given game information.
+void free_game_info(GameInfo* info) {
+    free_rules(&info->rules);
+    free_map(&info->agents[0].map);
+    free_map(&info->agents[1].map);
+}
+
+// Frees all memory associated with the given game state.
+void free_game(GameState* state) {
+    free_game_info(&state->info);
+    free_hitmap(&state->maps[0]);
+    free_hitmap(&state->maps[1]);
+}
+
+// Checks if the given position is within bounds with the given set of rules.
+// Returns true if it is, else returns false.
+bool position_in_bounds(Rules rules, Position pos) {
+
+    bool withinVerticalBounds = pos.row >= 0 && pos.row < rules.numRows;
+    bool withinHorizontalBounds = pos.col >= 0 && pos.col < rules.numCols; 
+    return withinVerticalBounds && withinHorizontalBounds;
+}
+
+// Checks if the given ship is within bounds with the given set of rules.
+// Returns true if it is, else returns false.
+bool ship_within_bounds(Rules rules, Ship ship) {
+    
+    Position currentPos = ship.pos;
+    for (int i = 0; i < ship.length; i++) {
+        if (!position_in_bounds(rules, currentPos)) {
+            return false;
+        }
+        currentPos = next_position_in_direction(currentPos, ship.dir);
+    }
+    return true;
+}
+
+// Checks if the two given ships overlap.
+// Returns true if they do, else returns false.
+bool ships_overlap(Ship s1, Ship s2) {
+    
+    Position currPos1 = s1.pos;
+    for (int i = 0; i < s1.length; i++) {
+        Position currPos2 = s2.pos;
+        for (int j = 0; j < s2.length; j++) {
+            if (positions_equal(currPos1, currPos2)) {
+                return true;
+            }
+            currPos2 = next_position_in_direction(currPos2, s2.dir);
+        }
+        currPos1 = next_position_in_direction(currPos1, s1.dir);
+    }
+    return false;
+}
+
+// Checks that the provided game information represents a valid game.
+// If the game information is invalid, returns the appropriate error
+// code. Otherwise returns ERR_OK and merges the game rules into the 
+// player maps.
+HubStatus validate_info(GameInfo info) {
+    
+    // Check that enough ships were read
+    if (info.agents[0].map.numShips < info.rules.numShips) {
+        return INVALID_RULES;
+    }
+    if (info.agents[1].map.numShips < info.rules.numShips) {
+        return INVALID_RULES;
+    }
+
+    // Update the ship lengths using those stated by the rules
+    for (int i = 0; i < info.rules.numShips; i++) {
+        update_ship_length(&info.agents[0].map.ships[i], 
+                info.rules.shipLengths[i]);
+        update_ship_length(&info.agents[1].map.ships[i], 
+                info.rules.shipLengths[i]);
+    }
+    
+    // Next, check that the ships do not overlap
+    for (int i = 0; i < info.rules.numShips; i++) {
+        for (int j = i + 1; j < info.rules.numShips; j++) {
+            if (ships_overlap(info.agents[0].map.ships[i], 
+                    info.agents[0].map.ships[j])) {
+                return INVALID_CONFIG;
+            }
+            if (ships_overlap(info.agents[1].map.ships[i], 
+                    info.agents[1].map.ships[j])) {
+                return INVALID_CONFIG;
+            }
+        }
+    }
+
+    // Finally, check that the ships are all within bounds
+    for (int i = 0; i < info.rules.numShips; i++) {
+        if (!ship_within_bounds(info.rules, 
+                info.agents[0].map.ships[i])) {
+            return INVALID_CONFIG;
+        }
+    }
+    for (int i = 0; i < info.rules.numShips; i++) {
+        if (!ship_within_bounds(info.rules, 
+                info.agents[1].map.ships[i])) {
+            return INVALID_CONFIG;
+        }
+    }
+    return NORMAL;
+}
+
+// Initialises and returns a new game using the given
+// command line arguments and game information.
+GameState init_game(GameInfo info) {
+    
+    GameState newGame;
+    newGame.info = info;
+    
+    // Set up hit maps
+    newGame.maps[0] = empty_hitmap(info.rules.numRows, info.rules.numCols);
+    newGame.maps[1] = empty_hitmap(info.rules.numRows, info.rules.numCols);
+    mark_ships(&newGame.maps[0], info.agents[0].map);
+    mark_ships(&newGame.maps[1], info.agents[1].map);
+
+    return newGame;
 }

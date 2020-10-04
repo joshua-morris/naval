@@ -14,16 +14,8 @@
 
 #define NUM_AGENTS 2
 
-/* Exit codes for the hub, as per the specification, from 0 by default. */
-typedef enum {
-    NORMAL,
-    INCORRECT_ARG_COUNT,
-    INVALID_RULES,
-    INVALID_CONFIG,
-    AGENT_ERR,
-    COMM_ERR,
-    GOT_SIGHUP
-} HubStatus;
+// needed to handling signals (SIGHUP)
+GameState* globalState;
 
 /**
  *
@@ -36,11 +28,12 @@ void kill_children() {
  * Print to standard error the error message and exit with exit status.
  *
  * err (HubStatus): The exit code to exit with.
+ * state (GameState*): the state to be freed
  *
  * Exits with code `err`.
  *
  */
-void hub_exit(HubStatus err) {
+void hub_exit(HubStatus err, GameState* state) {
     switch (err) {
         case INCORRECT_ARG_COUNT:
             fprintf(stderr, "Usage: 2310hub rules config\n");
@@ -64,6 +57,9 @@ void hub_exit(HubStatus err) {
             break;
     }
     kill_children();
+    if (state != NULL) {
+        free_game(state);
+    }
     exit(err);
 }
 
@@ -105,54 +101,62 @@ void send_yt(Agent* agent) {
  * Returns NORMAL on success otherwise a COMM_ERR.
  *
  */
-HubStatus read_map_message(Agent* agent, Rules rules, FILE* stream) {
+HubStatus read_map_message(Map* map, FILE* stream) {
     char* line;
     if ((line = read_line(stream)) == NULL || !check_tag("MAP ", line)) {
+        free(line);
         return COMM_ERR;
     }
-    line += strlen("MAP ");
-    for (int i = 0; i < rules.numShips; i++) {
-        int length = rules.shipLengths[i];
-        char col, direction;
-        int row;
 
+    Map newMap = empty_map();
+    int index = 0; // where we are in the line
+    index += strlen("MAP ");
+    while (true) {
         int count = 0;
-        char next;
-        while ((next = *line) != '\0' && next != EOF) {
-            line++;
-            if (next == ' ' || next == ',') {
+        while (line[index] != '\0') {
+            int row;
+            char col, direction;
+            if (line[index] == ' ') {
+                index++;
                 continue;
-            } else if (count == 0) {
-                if (!isalpha(next)) {
+            }
+            if (count == 0) {
+                if (!isalpha(line[index])) {
                     return COMM_ERR;
                 }
-                col = next;
+                col = line[index++];
                 count++;
             } else if (count == 1) {
-                if (!isdigit(next)) {
+                if (!isdigit(line[index])) {
                     return COMM_ERR;
                 }
-                row = next - '0';
-                count++;
-            } else if (count == 2) {
-                if (!isalpha(next)) {
-                    return COMM_ERR;
-                }
-                direction = next;
-                if (i == rules.numShips - 1) {
-                    break; // we don't need to find a ':'
-                }
-                while ((next = *line++) != ':') {
-                    if (next != ' ') {
+                row = line[index++] - '0';
+                while (line[index] != ',') {
+                    if (!isspace(line[index])) {
                         return COMM_ERR;
                     }
+                    index++;
                 }
+                index++;
+                count++;
+            } else if (count == 2) {
+                if (!isalpha(line[index])) {
+                    return COMM_ERR;
+                }
+                direction = line[index++];
+                add_ship(&newMap, new_ship(0, new_position(col, row), (Direction) direction));
+                count++;
+            } else if (line[index] == ':') {
+                index++;
                 break;
             }
         }
-        add_ship(&agent->map, new_ship(length, new_position(col, row), 
-                direction));
+        if (line[index] == '\0') {
+            break;
+        }
     }
+    free(line);
+    memcpy(map, &newMap, sizeof(Map));
     return NORMAL;
 }
 
@@ -170,14 +174,15 @@ HitType read_guess_message(HitMap* hitMap, GameInfo* info, int id) {
     char* line;
     if ((line = read_line(info->agents[id - 1].out)) == NULL 
             || !check_tag("GUESS ", line)) {
-        hub_exit(COMM_ERR);
+        free(line);
+        return HIT_REHIT;
     }
-    line += strlen("GUESS ");
 
     char col;
     int row;
-    if (sscanf(line, "%c%d", &col, &row) != 2) {
-        hub_exit(COMM_ERR);
+    if (sscanf(line, "GUESS %c%d", &col, &row) != 2) {
+        free(line);
+        return HIT_REHIT;
     }
     HitType hit = mark_ship_hit(hitMap, &info->agents[id - 1].map, 
             new_position(col, row));
@@ -200,6 +205,7 @@ HitType read_guess_message(HitMap* hitMap, GameInfo* info, int id) {
         fflush(info->agents[0].in);
         fflush(info->agents[1].in);
     }
+    free(line);
     return hit;
 }
 
@@ -277,10 +283,10 @@ HubStatus create_children(GameInfo* info) {
 }
 
 /**
- *
+ * SIGHUP handler. Exits with GOT_SIGHUP.
  */
 void handle_sighup() {
-
+    hub_exit(GOT_SIGHUP, globalState);
 }
 
 /**
@@ -290,70 +296,63 @@ void handle_sighup() {
  *
  */
 HubStatus play_game(GameState* state) {
-    HubPlayState playState = READ_MAPS;
-    HubStatus status = NORMAL;
     // put this in a for loop for the rounds
     int round = 0;
     while (true) {
         for (int agent = 0; agent < NUM_AGENTS; agent++) {
-            if (playState == READ_MAPS) {
-                send_rules_message(state->info.rules, 
-                        &state->info.agents[agent]);
-                if ((status = read_map_message(&state->info.agents[agent], 
-                        state->info.rules, 
-                        state->info.agents[agent].out)) != NORMAL) {
-                    return status;
-                }
-                state->maps[agent] = empty_hitmap(state->info.rules.numRows, 
-                        state->info.rules.numCols);
-                update_ship_lengths(&state->info.rules, 
-                        state->info.agents[agent].map);
-                mark_ships(&state->maps[agent], state->info.agents[agent].map);
-                if (agent == NUM_AGENTS - 1) {
-                    print_hub_maps(state->maps[0], state->maps[1], round);
-                    playState = PLAY_TURN;
-                }
-            } else if (playState == PLAY_TURN) {
-                while (true) {
-                    send_yt(&state->info.agents[agent]);
-                    if (read_guess_message(&state->maps[agent], 
-                            &state->info, agent + 1) != HIT_REHIT) {
-                        break;
-                    }
-                }
-                if (all_ships_sunk(state->info.agents[agent].map)) {
-                    playState = PLAY_DONE;
-                }
-                if (agent == NUM_AGENTS - 1) {
-                    print_hub_maps(state->maps[0], state->maps[1], round);
+            while (true) {
+                send_yt(&state->info.agents[agent]);
+                if (read_guess_message(&state->maps[agent], 
+                        &state->info, agent + 1) != HIT_REHIT) {
+                    break;
                 }
             }
-            
-            if (playState == PLAY_DONE) {
+            if (all_ships_sunk(state->info.agents[agent].map)) {
                 print_hub_maps(state->maps[0], state->maps[1], round);
                 fprintf(state->info.agents[0].in, "DONE %d", agent + 1);
                 fprintf(state->info.agents[1].in, "DONE %d", agent + 1);
                 printf("GAME OVER - player %d wins\n", agent + 1);
                 return NORMAL;
             }
+            if (agent == NUM_AGENTS - 1) {
+                print_hub_maps(state->maps[0], state->maps[1], round);
+            }
         }
     }
-    return status;
 }
 
 int main(int argc, char** argv) {
     if (argc != 3) {
-        hub_exit(INCORRECT_ARG_COUNT);
+        hub_exit(INCORRECT_ARG_COUNT, NULL);
     }
     GameInfo info;
-    read_rules_file(argv[1], &info.rules);
-    read_config_file(argv[2], &info);
-
     HubStatus status;
-    status = create_children(&info);
 
-    GameState state;
-    state.info = info;
+    if ((status = read_rules_file(argv[1], &info.rules)) != NORMAL) {
+        hub_exit(status, NULL);
+    }
+    read_config_file(argv[2], &info); // validate
+
+
+    if ((status = create_children(&info)) != NORMAL) {
+        hub_exit(status, NULL);
+    }
+
+    for (int agent = 0; agent < NUM_AGENTS; agent++) {
+        send_rules_message(info.rules, &info.agents[agent]);
+        status = read_map_message(&info.agents[agent].map, 
+                info.agents[agent].out);
+        if (status != NORMAL) {
+            hub_exit(status, NULL);
+        }
+    }
+
+    if ((status = validate_info(info)) != NORMAL) {
+        hub_exit(status, NULL);
+    }
+
+    GameState state = init_game(info);
+    globalState = &state;
 
     status = play_game(&state);
 
@@ -361,5 +360,5 @@ int main(int argc, char** argv) {
     sa.sa_handler = handle_sighup;
     sigaction(SIGHUP, &sa, 0);
 
-    hub_exit(status);
+    hub_exit(status, &state);
 }

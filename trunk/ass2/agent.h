@@ -4,12 +4,12 @@
 #define AGENT_H
 
 typedef enum {
-    NORMAL,
-    INCORRECT_ARG_COUNT,
+    AGENT_NORMAL,
+    AGENT_INCORRECT_ARG_COUNT,
     INVALID_ID,
     INVALID_MAP,
     INVALID_SEED,
-    COMM_ERR
+    AGENT_COMM_ERR
 } AgentStatus;
 
 /* Exit from the program */

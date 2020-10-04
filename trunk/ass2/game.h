@@ -4,6 +4,17 @@
 #ifndef GAME_H
 #define GAME_H
 
+/* Exit codes for the hub, as per the specification, from 0 by default. */
+typedef enum {
+    NORMAL,
+    INCORRECT_ARG_COUNT,
+    INVALID_RULES,
+    INVALID_CONFIG,
+    AGENT_ERR,
+    COMM_ERR,
+    GOT_SIGHUP
+} HubStatus;
+
 /**
  * The rules for the current game.
  * - numRows: the number of rows on the board
@@ -137,11 +148,6 @@ typedef enum RuleReadState {
     READ_DIMS, READ_SHIPS, READ_LENGTHS, READ_DONE, READ_INVALID
 } RuleReadState;
 
-/* The current state of the hub */
-typedef enum HubPlayState {
-    READ_MAPS, PLAY_TURN, PLAY_DONE
-} HubPlayState;
-
 /* The types of hits that can occur */
 typedef enum HitType {
     HIT_NONE = '.',
@@ -158,11 +164,15 @@ typedef enum PlayReadState {
 
 /* File parsing */
 bool read_map_file(char* filepath, Map* map);
-void read_rules_file(char* filepath, Rules* rules);
+HubStatus read_rules_file(char* filepath, Rules* rules);
 void read_config_file(char* filepath, GameInfo* info);
+
+HubStatus validate_info(GameInfo info);
+GameState init_game(GameInfo info);
 
 /* Memory management */
 void free_agent_state(AgentState* state);
+void free_game(GameState* state);
 
 /* Util */
 char* read_line(FILE* stream);
@@ -187,5 +197,7 @@ void add_ship(Map* map, Ship ship);
 Ship new_ship(int length, Position pos, Direction dir);
 
 bool all_ships_sunk(Map map);
+
+Map empty_map(void);
 
 #endif
