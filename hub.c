@@ -185,8 +185,15 @@ HitType read_guess_message(HitMap* hitMap, GameInfo* info, int id) {
         free(line);
         return HIT_REHIT;
     }
-    HitType hit = mark_ship_hit(hitMap, &info->agents[id - 1].map, 
+    HitType hit;
+    if (id == 1) {
+        hit = mark_ship_hit(hitMap, &info->agents[1].map, 
             new_position(col, row));
+    } else if (id == 2) {
+        hit = mark_ship_hit(hitMap, &info->agents[0].map, 
+            new_position(col, row));
+    }
+    
     if (hit == HIT_HIT) {
         fprintf(info->agents[id - 1].in, "OK\n");
         fprintf(info->agents[0].in, "HIT %d,%c%d\n", id, col, row);
@@ -311,13 +318,12 @@ HubStatus play_game(GameState* state) {
         for (int agent = 0; agent < NUM_AGENTS; agent++) {
             while (true) {
                 send_yt(&state->info.agents[agent]);
-                if (read_guess_message(&state->maps[agent], 
+                if (read_guess_message(&state->maps[agent ^ 1], 
                         &state->info, agent + 1) != HIT_REHIT) {
                     break;
                 }
             }
-            if (all_ships_sunk(state->info.agents[agent].map)) {
-                print_hub_maps(state->maps[0], state->maps[1], round);
+            if (all_ships_sunk(state->info.agents[agent ^ 1].map)) {
                 fprintf(state->info.agents[0].in, "DONE %d", agent + 1);
                 fprintf(state->info.agents[1].in, "DONE %d", agent + 1);
                 printf("GAME OVER - player %d wins\n", agent + 1);
