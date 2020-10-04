@@ -140,19 +140,6 @@ bool ship_sunk(Ship ship) {
 }
 
 /**
- * Frees all memory associated with the given ship.
- *
- * ship (Ship*): the ship to be freed
- *
- */
-void free_ship(Ship* ship) {
-    if (ship->hits) {
-        free(ship->hits);
-        ship->hits = NULL;
-    }
-}
-
-/**
  * Creates a new empty map
  *
  * Returns the new map.
@@ -195,22 +182,6 @@ bool all_ships_sunk(Map map) {
         }
     }
     return true;
-}
-
-/**
- * Frees all memory associated with the given map
- *
- * map (Map*): the map the be freed
- *
- */
-void free_map(Map* map) {
-    if (map->ships) {
-        for (int i = 0; i < map->numShips; i++) {
-            free_ship(&map->ships[i]);
-        }
-        free(map->ships);
-        map->ships = NULL;
-    }
 }
 
 /*
@@ -337,45 +308,6 @@ HitMap empty_hitmap(int rows, int cols) {
     memset(newMap.data, HIT_NONE, sizeof(char) * (rows * cols));
 
     return newMap;
-}
-
-/**
- * Free the memory of a hitmap
- *
- * map (HitMap*): the hitmap to be freed
- *
- */
-void free_hitmap(HitMap* map) {   
-    if (map->data) {
-        free(map->data);
-        map->data = NULL;
-    }
-}
-
-/**
- * Free the memory of a rules struct
- *
- * rules (Rules*): the rules to be freed
- *
- */
-void free_rules(Rules* rules) {
-    if (rules->shipLengths) {
-        free(rules->shipLengths);
-        rules->shipLengths = NULL;
-    }
-}
-
-/**
- * Free the memory of an agent state
- *
- * state (AgentState*): the agent state to be freed
- *
- */
-void free_agent_state(AgentState* state) {
-    free_rules(&state->rules);
-    free_hitmap(&state->hitMaps[0]);
-    free_hitmap(&state->hitMaps[1]);
-    free_map(&state->map);
 }
 
 /**
@@ -514,14 +446,14 @@ void mark_ships(HitMap* map, Map playerMap) {
 /** 
  * Checks if the given positions are the same. 
  *
- * p1 (Position): first position to compare
- * p2 (Position): second position to compare
+ * first (Position): first position to compare
+ * second (Position): second position to compare
  *
  * Returns true if they are, else returns false
  *
  */
-bool positions_equal(Position p1, Position p2) {
-    return p1.row == p2.row && p1.col == p2.col;
+bool positions_equal(Position first, Position second) {
+    return first.row == second.row && first.col == second.col;
 }
 
 /**
@@ -534,8 +466,7 @@ bool positions_equal(Position p1, Position p2) {
  * where the ship will be hit (i.e. 0 is the tip), else returns false. 
  *
  */
-bool is_ship_hit(Ship ship, Position pos, int* index) {
-    
+bool is_ship_hit(Ship ship, Position pos, int* index) { 
     Position currPos = ship.pos;
     for (int i = 0; i < ship.length; i++) {
         if (positions_equal(pos, currPos)) {
@@ -558,7 +489,6 @@ bool is_ship_hit(Ship ship, Position pos, int* index) {
  *
  */
 HitType mark_ship_hit(HitMap* hitmap, Map* playerMap, Position pos) {
-    
     char info = get_position_info(*hitmap, pos);
     if (info == HIT_HIT || info == HIT_MISS) {
         return HIT_REHIT;
@@ -622,24 +552,16 @@ void initialise_hitmaps(AgentState state) {
     mark_ships(&state.hitMaps[state.id - 1], state.map);
 }
 
-/* Creates a new set of rules for a standard game */
-Rules standard_rules(void) {
-    
-    Rules rules;
-    rules.numRows = 8;
-    rules.numCols = 8;
-    rules.numShips = 5;
-    rules.shipLengths = calloc(rules.numShips, sizeof(int));
-
-    for (int i = 0; i < rules.numShips; i++) {
-        rules.shipLengths[i] = 5 - i;
-    }
-    return rules;
-}
-
-// Reads the dimensions in the rules file from the given line. 
-// Updates the provided rules with the read information. If an
-// error occurs, returns READ_INVALID, otherwise returns READ_SHIPS.
+/**
+ * Reads the dimensions in the rules file from the given line. 
+ * Updates the provided rules with the read information. 
+ *
+ * line (char*): the line to read from
+ * rules (Rules*): the rules to be updated
+ *
+ * If an error occurs, returns READ_INVALID, otherwise returns READ_SHIPS.
+ *
+ */
 RuleReadState read_dimensions(char* line, Rules* rules) {
 
     int width, height;
@@ -658,9 +580,16 @@ RuleReadState read_dimensions(char* line, Rules* rules) {
     return READ_SHIPS;
 }
 
-// Reads the number of ships in the rules file using the given line. 
-// Updates the provided rules with the read information. If an error
-// occurs, returns READ_INVALID, otherwise returns READ_SHIPS.
+/**
+ * Reads the number of ships in the rules file using the given line. 
+ * Updates the provided rules with the read information. 
+ *
+ * line (char*): the line to be read from.
+ * rules (Rules*): the rules to be updated
+ *
+ * If an error occurs, returns READ_INVALID, otherwise returns READ_SHIPS.
+ *
+ */
 RuleReadState read_num_ships(char* line, Rules* rules) {
     
     char* err;
@@ -673,10 +602,18 @@ RuleReadState read_num_ships(char* line, Rules* rules) {
     return READ_LENGTHS;
 }
 
-// Reads the ship length for the numRead'th ship from the given line. 
-// Updates the provided rules with the read information. If an error
-// occurs, returns READ_INVALID. If all ships have been read, returns
-// READ_DONE, otherwise returns READ_LENGTHS.
+/**
+ * Reads the ship length for the numRead'th ship from the given line. 
+ * Updates the provided rules with the read information. 
+ *
+ * line (char*): the line to be read from
+ * numRead (int*): the number of ships read, to be modified
+ * rules (Rules*): the rules to be updated
+ *
+ * If an error occurs, returns READ_INVALID. If all ships have been read,
+ * returns READ_DONE, otherwise returns READ_LENGTHS.
+ *
+ */
 RuleReadState read_ship_length(char* line, int* numRead, Rules* rules) {
     
     char* err;
@@ -701,13 +638,23 @@ RuleReadState read_ship_length(char* line, int* numRead, Rules* rules) {
     return READ_LENGTHS;
 }
 
-// Attempts to read the rules file at the given filepath.
-// Updates the provided rules to contain the read information.
-// If an error occurs while reading, returns the appropriate
-// error code, otherwise returns ERR_OK.
+/**
+ * Attempts to read the rules file at the given filepath.
+ * Updates the provided rules to contain the read information.
+ *
+ * filepath (char*): the filepath for the file
+ * rules (Rules*): the rules to be modified
+ *
+ * If an error occurs while reading, returns the appropriate
+ * error code, otherwise returns NORMAL.
+ *
+ */
 HubStatus read_rules_file(char* filepath, Rules* rules) {
     
     FILE* infile = fopen(filepath, "r");
+    if (!infile) {
+        return INVALID_RULES;
+    }
     RuleReadState state = READ_DIMS;
     char* next;
     int shipLengthsRead = 0;
@@ -742,7 +689,16 @@ HubStatus read_rules_file(char* filepath, Rules* rules) {
     return NORMAL;
 }
 
-char* config_read_to(char delim, char* line) {
+/**
+ * Read to a delimeter (',' or '\0') in the config file.
+ *
+ * index (int*): the index in the config line to be modified
+ * line (char*): the line to read
+ *
+ * Returns the substring up to the delimeter.
+ *
+ */
+char* config_read_to(int* index, char* line) {
     int bufferSize = INITIAL_BUFFER_SIZE;
     char* buffer = malloc(sizeof(char) * bufferSize);
     int numRead = 0;
@@ -752,13 +708,15 @@ char* config_read_to(char delim, char* line) {
             bufferSize *= 2;
             buffer = realloc(buffer, sizeof(char) * bufferSize);
         }
-        if (line[numRead] == '\0' || line[numRead] == delim) {
+        if (line[numRead] == '\0' || line[numRead] == ',') {
             buffer[numRead] = '\0';
             break;
         }
         buffer[numRead] = line[numRead];
         numRead++;
     }
+    *index += strlen(buffer) + 1;
+    strtrim(buffer);
     return buffer;
 }
 
@@ -771,6 +729,9 @@ char* config_read_to(char delim, char* line) {
  */
 HubStatus read_config_file(char* filepath, GameInfo* info) {
     FILE* infile = fopen(filepath, "r");
+    if (!infile) {
+        return INVALID_CONFIG;
+    }
     char* line;
     
     while ((line = read_line(infile)) != NULL) {
@@ -784,36 +745,30 @@ HubStatus read_config_file(char* filepath, GameInfo* info) {
 
     int count = 0;
     int index = 0;
-        while (true) {
+    char* current;
+    while (true) {
         if (count == 0) {
-            char* current = config_read_to(',', line + index);
-            index += strlen(current) + 1;
-            strtrim(current);
+            current = config_read_to(&index, line + index);
             info->agents[0].programPath = malloc(sizeof(current));
             strcpy(info->agents[0].programPath, current);
             count++;
         } else if (count == 1) {
-            char* current = config_read_to(',', line + index);
-            index += strlen(current) + 1;
-            strtrim(current);
+            current = config_read_to(&index, line + index);
             info->agents[0].mapPath = malloc(sizeof(current));
             strcpy(info->agents[0].mapPath, current);
             count++;
         } else if (count == 2) {
-            char* current = config_read_to(',', line + index);
-            index += strlen(current) + 1;
-            strtrim(current);
+            current = config_read_to(&index, line + index);
             info->agents[1].programPath = malloc(sizeof(current));
             strcpy(info->agents[1].programPath, current);
             count++;
         } else if (count == 3) {
-            char* current = config_read_to('\0', line + index);
-            index += strlen(current) + 1;
-            strtrim(current);
+            current = config_read_to(&index, line + index);
             info->agents[1].mapPath = malloc(sizeof(current));
             strcpy(info->agents[1].mapPath, current);
             count++;
         } else {
+            free(current);
             break;
         }
     }
@@ -822,51 +777,14 @@ HubStatus read_config_file(char* filepath, GameInfo* info) {
 }
 
 /**
- * Find the contents up to a delimeter, modifies line.
+ * Checks if the given position is within bounds with the given set of rules.
  *
- * delim (char): the delimeter
- * line (char*): line to read
+ * rules (Rules): the given rules
+ * pos (Position): the position to check
  *
- * Returns the content up to the delimeter or null terminator.
+ * Returns true if it is, else returns false.
  *
  */
-char* up_to_delim(char delim, char* line) {
-    char* result = malloc(sizeof(char));
-    int i = 0;
-    while (*line != '\0' && *line != delim) {
-        result[i] = *line;
-        result = realloc(result, sizeof(char) * ++i + 1);
-        line++;
-    }
-    return result;
-}
-
-void free_agent(Agent* agent) {
-    
-}
-
-// Frees all memory associated with the given game information.
-
-
-void free_game_info(GameInfo* info) {
-    free_rules(&info->rules);
-    free_map(&info->agents[0].map);
-    free_map(&info->agents[1].map);
-}
-
-// Frees all memory associated with the given game state.
-
-
-void free_game(GameState* state) {
-    free_game_info(&state->info);
-    free_hitmap(&state->maps[0]);
-    free_hitmap(&state->maps[1]);
-}
-
-// Checks if the given position is within bounds with the given set of rules.
-// Returns true if it is, else returns false.
-
-
 bool position_in_bounds(Rules rules, Position pos) {
 
     bool withinVerticalBounds = pos.row >= 0 && pos.row < rules.numRows;
@@ -874,10 +792,15 @@ bool position_in_bounds(Rules rules, Position pos) {
     return withinVerticalBounds && withinHorizontalBounds;
 }
 
-// Checks if the given ship is within bounds with the given set of rules.
-// Returns true if it is, else returns false.
-
-
+/**
+ * Checks if the given ship is within bounds with the given set of rules.
+ *
+ * rules (Rules): the given rules
+ * ship (Ship): the ship to check
+ *
+ * Returns true if it is, else returns false.
+ *
+ */
 bool ship_within_bounds(Rules rules, Ship ship) {
     
     Position currentPos = ship.pos;
@@ -890,32 +813,59 @@ bool ship_within_bounds(Rules rules, Ship ship) {
     return true;
 }
 
-// Checks if the two given ships overlap.
-// Returns true if they do, else returns false.
-
-
-bool ships_overlap(Ship s1, Ship s2) {
+/**
+ * Checks if the two given ships overlap.
+ *
+ * first (Ship): the first ship to check
+ * second (Ship): the second ship to check
+ *
+ * Returns true if they do, else returns false.
+ *
+ */
+bool ships_overlap(Ship first, Ship second) {
     
-    Position currPos1 = s1.pos;
-    for (int i = 0; i < s1.length; i++) {
-        Position currPos2 = s2.pos;
-        for (int j = 0; j < s2.length; j++) {
-            if (positions_equal(currPos1, currPos2)) {
+    Position currPosFirst = first.pos;
+    for (int i = 0; i < first.length; i++) {
+        Position currPosSecond = second.pos;
+        for (int j = 0; j < second.length; j++) {
+            if (positions_equal(currPosFirst, currPosSecond)) {
                 return true;
             }
-            currPos2 = next_position_in_direction(currPos2, s2.dir);
+            currPosSecond = next_position_in_direction(currPosSecond, 
+                    second.dir);
         }
-        currPos1 = next_position_in_direction(currPos1, s1.dir);
+        currPosFirst = next_position_in_direction(currPosFirst, first.dir);
     }
     return false;
 }
 
-// Checks that the provided game information represents a valid game.
-// If the game information is invalid, returns the appropriate error
-// code. Otherwise returns ERR_OK and merges the game rules into the 
-// player maps.
+/**
+ * Checks that information associated with a ship is valid.
+ *
+ * col (char): an alpha representation of a column
+ * row (char): a digit representation of a row
+ * dir (char): ship direction
+ *
+ * Returns true if valid, otherwise false
+ *
+ */
+bool validate_ship_info(char col, char row, char dir) {
+    if (!isalpha(col) || !isdigit(row) || !isalpha(dir)) {
+        return false;
+    }
+    return true;
+}
 
-
+/**
+ * Checks that the provided game information represents a valid game.
+ *
+ * info (GameInfo): the info to validate
+ *
+ * If the game information is invalid, returns the appropriate error
+ * code. Otherwise returns NORMAL and merges the game rules into the 
+ * player maps.
+ *
+ */
 HubStatus validate_info(GameInfo info) {
     
     // Check that enough ships were read
@@ -964,10 +914,14 @@ HubStatus validate_info(GameInfo info) {
     return NORMAL;
 }
 
-// Initialises and returns a new game using the given
-// command line arguments and game information.
-
-
+/**
+ * Initialise a game state with the given game info.
+ *
+ * info (GameInfo): the game info to use
+ *
+ * Returns a new game state with the given info.
+ *
+ */
 GameState init_game(GameInfo info) {
     
     GameState newGame;
@@ -980,4 +934,108 @@ GameState init_game(GameInfo info) {
     mark_ships(&newGame.maps[1], info.agents[1].map);
 
     return newGame;
+}
+
+/**
+ * Free the memory of a hitmap
+ *
+ * map (HitMap*): the hitmap to be freed
+ *
+ */
+void free_hitmap(HitMap* map) {   
+    if (map->data) {
+        free(map->data);
+        map->data = NULL;
+    }
+}
+
+/**
+ * Free the memory of a rules struct
+ *
+ * rules (Rules*): the rules to be freed
+ *
+ */
+void free_rules(Rules* rules) {
+    if (rules->shipLengths) {
+        free(rules->shipLengths);
+        rules->shipLengths = NULL;
+    }
+}
+
+/**
+ * Frees all memory associated with the given ship.
+ *
+ * ship (Ship*): the ship to be freed
+ *
+ */
+void free_ship(Ship* ship) {
+    if (ship->hits) {
+        free(ship->hits);
+        ship->hits = NULL;
+    }
+}
+
+/**
+ * Frees all memory associated with the given map
+ *
+ * map (Map*): the map the be freed
+ *
+ */
+void free_map(Map* map) {
+    if (map->ships) {
+        for (int i = 0; i < map->numShips; i++) {
+            free_ship(&map->ships[i]);
+        }
+        free(map->ships);
+        map->ships = NULL;
+    }
+}
+
+/**
+ * Free the memory of an agent state
+ *
+ * state (AgentState*): the agent state to be freed
+ *
+ */
+void free_agent_state(AgentState* state) {
+    free_rules(&state->rules);
+    free_hitmap(&state->hitMaps[0]);
+    free_hitmap(&state->hitMaps[1]);
+    free_map(&state->map);
+}
+
+/**
+ * Frees all the memory associated with an agent
+ *
+ * agent (Agent*): the agent to be freed
+ *
+ */
+void free_agent(Agent* agent) {
+    free_map(&agent->map);
+    free(agent->programPath);
+    free(agent->mapPath);
+}
+
+/** 
+ * Frees all memory associated with the given game information.
+ *
+ * info (GameInfo*): the info to be freed
+ *
+ */
+void free_game_info(GameInfo* info) {
+    free_rules(&info->rules);
+    free_agent(&info->agents[0]);
+    free_agent(&info->agents[1]);
+}
+
+/**
+ * Frees all memory associated with the given game state.
+ *
+ * state (GameState*): the state to be freed
+ *
+ */
+void free_game(GameState* state) {
+    free_game_info(&state->info);
+    free_hitmap(&state->maps[0]);
+    free_hitmap(&state->maps[1]);
 }
