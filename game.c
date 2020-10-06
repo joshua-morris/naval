@@ -485,17 +485,6 @@ void update_ship_lengths(Rules* rules, Map map) {
 }
 
 /**
- * Initialise the hitmaps of an agent
- *
- * state (AgentState): the agent state to be modified
- *
- */
-void initialise_hitmaps(AgentState state) {
-    update_ship_lengths(&state.info.rules, state.info.map);
-    mark_ships(&state.hitMaps[state.info.id - 1], state.info.map);
-}
-
-/**
  * Reads the dimensions in the rules file from the given line. 
  * Updates the provided rules with the read information. 
  *
@@ -932,19 +921,6 @@ void free_map(Map* map) {
         free(map->ships);
         map->ships = NULL;
     }
-}
-
-/**
- * Free the memory of an agent state
- *
- * state (AgentState*): the agent state to be freed
- *
- */
-void free_agent_state(AgentState* state) {
-    free_rules(&state->info.rules);
-    free_hitmap(&state->hitMaps[0]);
-    free_hitmap(&state->hitMaps[1]);
-    free_map(&state->info.map);
 }
 
 /**
