@@ -221,63 +221,6 @@ bool is_valid_row(int row) {
     return MIN_MAP_DIM <= row && row <= MAX_MAP_DIM; 
 }
 
-/*
- * Read the given line and overwrite the map file.
- *
- * line (char*): the line to be read
- * map (Map*): the map to overwrite
- *
- * Returns true if successful and false otherwise.
- *
- */
-bool read_map_line(char* line, Map* map) {
-    int row;
-    char col, direction, dummy;
-    int scanCount = sscanf(line, "%c%d %c%c", &col, &row, &direction, &dummy);
-    
-    if (scanCount != 3 || !isdigit(line[1]) || !is_valid_row(row) ||
-            !is_valid_column(col) || !is_valid_direction(direction)) {
-        return false;
-    }
-    add_ship(map, new_ship(0, new_position(col, row), (Direction) direction));
-    return true;
-}
-
-/**
- * Read the map file and overwrite the given map.
- *
- * filepath (char*): the location of the map file
- * map (Map*): the map to be overwritten
- *
- * Returns true if the file is successfully read, false otherwise.
- *
- */
-bool read_map_file(char* filepath, Map* map) {
-    FILE* infile = fopen(filepath, "r");
-    if (infile == NULL) {
-        return false;
-    }
-    char* next;
-
-    Map newMap = empty_map();
-    while ((next = read_line(infile)) != NULL) {
-        strtrim(next);
-        if (is_comment(next)) {
-            free(next);
-            continue;
-        }
-        if (!read_map_line(next, &newMap)) {
-            free(next);
-            fclose(infile);
-            return false;
-        }
-        free(next);
-    }
-    fclose(infile);
-    memcpy(map, &newMap, sizeof(Map));
-    return true;
-}
-
 /**
  * Compare the tag with a line to check if it is of that type.
  *
@@ -548,8 +491,8 @@ void update_ship_lengths(Rules* rules, Map map) {
  *
  */
 void initialise_hitmaps(AgentState state) {
-    update_ship_lengths(&state.rules, state.map);
-    mark_ships(&state.hitMaps[state.id - 1], state.map);
+    update_ship_lengths(&state.info.rules, state.info.map);
+    mark_ships(&state.hitMaps[state.info.id - 1], state.info.map);
 }
 
 /**
@@ -768,9 +711,9 @@ HubStatus read_config_file(char* filepath, GameInfo* info) {
             strcpy(info->agents[1].mapPath, current);
             count++;
         } else {
-            free(current);
             break;
         }
+        free(current);
     }
     free(line);
     return NORMAL;
@@ -998,10 +941,10 @@ void free_map(Map* map) {
  *
  */
 void free_agent_state(AgentState* state) {
-    free_rules(&state->rules);
+    free_rules(&state->info.rules);
     free_hitmap(&state->hitMaps[0]);
     free_hitmap(&state->hitMaps[1]);
-    free_map(&state->map);
+    free_map(&state->info.map);
 }
 
 /**

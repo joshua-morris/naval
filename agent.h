@@ -13,15 +13,17 @@ typedef enum {
 } AgentStatus;
 
 /* Exit from the program */
-void agent_exit(AgentStatus err);
+void agent_exit(AgentStatus err, AgentState* state);
 
 /* Message parsing */
 AgentStatus read_message(AgentState* state, char* message);
-AgentStatus read_rules_message(Rules* rules, char* message);
+AgentStatus read_rules_message(Rules* rules);
 PlayReadState read_hit_message(AgentState* state, char* message, HitType hit);
 
 /* Message sending */
 void send_map_message(Map map);
-void make_guess(HitMap* hitMap);
+void make_guess(HitMap* hitMap, AgentMode mode);
+
+AgentStatus read_map_file(char* filepath, Map* map);
 
 #endif
