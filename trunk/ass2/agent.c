@@ -71,7 +71,7 @@ AgentStatus wait_for_done() {
             return AGENT_COMM_ERR;
         }
         if (id == 1 || id == 2) {
-            
+            fprintf(stderr, "GAME OVER - player %d wins\n", id);
             free(next);
             return AGENT_NORMAL;
         }
@@ -110,7 +110,8 @@ void send_map_message(Map map) {
  * Returns READ_ERR if failed otherwise moves to next state.
  *
  */
-AgentStatus read_hit_message(AgentState* state, char* message, int agent, HitType hit) {
+AgentStatus read_hit_message(AgentState* state, char* message, int agent, 
+        HitType hit) {
     int index = 0;
     if (hit == HIT_HIT) {
         index += strlen("HIT ");
@@ -203,6 +204,7 @@ AgentStatus read_id(char* message, int* id) {
 
     return AGENT_NORMAL;
 }
+
 /*
  * Read the given line and overwrite the map file.
  *
@@ -392,6 +394,20 @@ bool read_yt(AgentState* state, bool check_ok) {
 }
 
 /**
+ * Print the maps for the agent to sderr
+ *
+ * state (AgentState): the state of this agent
+ *
+ */
+void print_agent_maps(AgentState* state) {
+    if (state->info.id == 1) {
+        print_maps(state->hitMaps[0], state->hitMaps[1], stderr);
+    } else if (state->info.id == 2) {
+        print_maps(state->hitMaps[1], state->hitMaps[0], stderr);
+    }
+}
+
+/**
  * Run the main game loop for an agent.
  *
  * state (AgentState*): the state of this agent
@@ -402,12 +418,7 @@ bool read_yt(AgentState* state, bool check_ok) {
 AgentStatus play_game(AgentState* state) {
     AgentStatus status;
 
-    if (state->info.id == 1) {
-        print_maps(state->hitMaps[0], state->hitMaps[1], stderr);
-    } else if (state->info.id == 2) {
-        print_maps(state->hitMaps[1], state->hitMaps[0], stderr);
-    }
-
+    print_agent_maps(state);
     while (true) {
         for (int agent = 0; agent < NUM_AGENTS; agent++) {
             bool check_ok = false;
@@ -432,26 +443,16 @@ AgentStatus play_game(AgentState* state) {
                 return status;
             }
 
-            if (state->agentShips == 0) { // game should be over
-                int opponentId;
-                if (state->info.id == 1) {
-                    opponentId = 2;
-                } else {
-                    opponentId = 1;
+            if (state->agentShips == 0 || state->opponentShips == 0) { 
+                // game should be over
+                if (agent == NUM_AGENTS - 1) {
+                    print_agent_maps(state);
                 }
-                fprintf(stderr, "GAME OVER - player %d wins\n", opponentId);
-                return wait_for_done();
-            } else if (state->opponentShips == 0) {
-                fprintf(stderr, "GAME OVER - player %d wins\n", state->info.id);
                 return wait_for_done();
             }
 
             if (agent == NUM_AGENTS - 1) {
-                if (state->info.id == 1) {
-                    print_maps(state->hitMaps[0], state->hitMaps[1], stderr);
-                } else if (state->info.id == 2) {
-                    print_maps(state->hitMaps[1], state->hitMaps[0], stderr);
-                }
+                print_agent_maps(state);
             }
         }
     }
