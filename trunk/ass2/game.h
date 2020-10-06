@@ -4,6 +4,8 @@
 #ifndef GAME_H
 #define GAME_H
 
+#define NUM_AGENTS 2
+
 /* Exit codes for the hub, as per the specification, from 0 by default. */
 typedef enum {
     NORMAL,
@@ -189,6 +191,9 @@ GameState init_game(GameInfo info);
 /* Memory management */
 void free_agent_state(AgentState* state);
 void free_game(GameState* state);
+void free_map(Map* map);
+void free_rules(Rules* rules);
+void free_hitmap(HitMap* map);
 
 /* Util */
 Position new_position(char col, int row);
