@@ -161,50 +161,50 @@ HubStatus read_map_message(Map* map, FILE* stream) {
  * The status of the hub NORMAL if successful.
  *
  */
-HitType read_guess_message(HitMap* hitMap, GameInfo* info, int id) {
+HitType read_guess_message(GameState* state, int id) {
     char* line;
-    if ((line = read_line(info->agents[id - 1].out)) == NULL 
+    if ((line = read_line(state->info.agents[id - 1].out)) == NULL 
             || !check_tag("GUESS ", line)) {
         free(line);
-        return HIT_REHIT;
+        hub_exit(COMM_ERR, state);
     }
 
     char col;
     int row;
     if (sscanf(line, "GUESS %c%d", &col, &row) != 2) {
         free(line);
-        return HIT_REHIT;
+        hub_exit(COMM_ERR, state);
     }
     HitType hit;
     if (id == 1) {
-        hit = mark_ship_hit(hitMap, &info->agents[1].map, 
-                new_position(col, row));
+        hit = mark_ship_hit(&state->maps[1], 
+                &state->info.agents[1].map, new_position(col, row));
     } else if (id == 2) {
-        hit = mark_ship_hit(hitMap, &info->agents[0].map, 
-                new_position(col, row));
+        hit = mark_ship_hit(&state->maps[0], 
+                &state->info.agents[0].map, new_position(col, row));
     }
     
     if (hit == HIT_HIT) {
-        fprintf(info->agents[id - 1].in, "OK\n");
-        fprintf(info->agents[0].in, "HIT %d,%c%d\n", id, col, row);
-        fprintf(info->agents[1].in, "HIT %d,%c%d\n", id, col, row);
+        fprintf(state->info.agents[id - 1].in, "OK\n");
+        fprintf(state->info.agents[0].in, "HIT %d,%c%d\n", id, col, row);
+        fprintf(state->info.agents[1].in, "HIT %d,%c%d\n", id, col, row);
         printf("HIT player %d guessed %c%d\n", id, col, row);
-        fflush(info->agents[0].in);
-        fflush(info->agents[1].in);
+        fflush(state->info.agents[0].in);
+        fflush(state->info.agents[1].in);
     } else if (hit == HIT_MISS) {
-        fprintf(info->agents[id - 1].in, "OK\n");
-        fprintf(info->agents[0].in, "MISS %d,%c%d\n", id, col, row);
-        fprintf(info->agents[1].in, "MISS %d,%c%d\n", id, col, row);
+        fprintf(state->info.agents[id - 1].in, "OK\n");
+        fprintf(state->info.agents[0].in, "MISS %d,%c%d\n", id, col, row);
+        fprintf(state->info.agents[1].in, "MISS %d,%c%d\n", id, col, row);
         printf("MISS player %d guessed %c%d\n", id, col, row);
-        fflush(info->agents[0].in);
-        fflush(info->agents[1].in);
+        fflush(state->info.agents[0].in);
+        fflush(state->info.agents[1].in);
     } else if (hit == HIT_SUNK) {
-        fprintf(info->agents[id - 1].in, "OK\n");
-        fprintf(info->agents[0].in, "SUNK %d,%c%d\n", id, col, row);
-        fprintf(info->agents[1].in, "SUNK %d,%c%d\n", id, col, row);
+        fprintf(state->info.agents[id - 1].in, "OK\n");
+        fprintf(state->info.agents[0].in, "SUNK %d,%c%d\n", id, col, row);
+        fprintf(state->info.agents[1].in, "SUNK %d,%c%d\n", id, col, row);
         printf("SHIP SUNK player %d guessed %c%d\n", id, col, row);
-        fflush(info->agents[0].in);
-        fflush(info->agents[1].in);
+        fflush(state->info.agents[0].in);
+        fflush(state->info.agents[1].in);
     }
     free(line);
     return hit;
@@ -308,8 +308,7 @@ HubStatus play_game(GameState* state) {
         for (int agent = 0; agent < NUM_AGENTS; agent++) {
             while (true) {
                 send_yt(&state->info.agents[agent]);
-                if (read_guess_message(&state->maps[agent ^ 1], 
-                        &state->info, agent + 1) != HIT_REHIT) {
+                if (read_guess_message(state, agent + 1) != HIT_REHIT) {
                     break;
                 }
             }
