@@ -125,22 +125,39 @@ typedef struct GameState {
     HitMap maps[2];
 } GameState;
 
+/* Current state of reading in the play loop */
+typedef enum AgentMode {
+    SEARCH, ATTACK
+} AgentMode;
+
+/**
+ * The overall info related to an agent state.
+ *
+ * - id: the id for this agent
+ * - rules: the rules of this game
+ * - map: the map of this agent
+ */
+typedef struct AgentInfo {
+    int id;
+    Rules rules;
+    Map map;
+} AgentInfo;
+
 /**
  * The overall state of a game from an agent's perspective.
+ *
+ * - info: the agent info
  * - hitMaps[]: the hitmaps of each player
- * - map: the map of this agent
- * - rules: the rules of this game
  * - opponentShips: the number of ships the opponent has
  * - agentShips: the number of ships this agent has
- * - id: the id for this agent
+ * - mode: the mode of the agent (only applies to agent B)
  */
 typedef struct AgentState {
+    AgentInfo info;
     HitMap hitMaps[2];
-    Map map;
-    Rules rules;
     int opponentShips;
     int agentShips;
-    int id;
+    AgentMode mode;
 } AgentState;
 
 /* The current state of reading a rules file */
@@ -163,7 +180,6 @@ typedef enum PlayReadState {
 } PlayReadState;
 
 /* File parsing */
-bool read_map_file(char* filepath, Map* map);
 HubStatus read_rules_file(char* filepath, Rules* rules);
 HubStatus read_config_file(char* filepath, GameInfo* info);
 
@@ -180,6 +196,11 @@ char* read_line(FILE* stream);
 bool check_tag(char* tag, char* line);
 void strtrim(char* string);
 bool validate_ship_info(char col, char row, char dir);
+bool is_comment(char* line);
+
+bool is_valid_direction(char dir);
+bool is_valid_column(char col);
+bool is_valid_row(int row);
 
 /* Hit maps */
 void initialise_hitmaps(AgentState state);
@@ -199,5 +220,7 @@ Ship new_ship(int length, Position pos, Direction dir);
 bool all_ships_sunk(Map map);
 
 Map empty_map(void);
+
+char get_position_info(HitMap map, Position pos);
 
 #endif

@@ -10,9 +10,11 @@
  * Make a guess following the algorithm designed on the specification.
  *
  * hitMap (HitMap*): the map to be attacked
+ * mode (AgentMode): mode ignored by this agent
+ * seed (int): seed ignored by this agent
  *
  */
-void make_guess(HitMap* hitMap) {
+void make_guess(HitMap* hitMap, AgentMode mode) {
     int topMost; // find the top most row with no guess
     for (int i = 0; i < strlen(hitMap->data); i++) {
         if (hitMap->data[i] == HIT_NONE) {
