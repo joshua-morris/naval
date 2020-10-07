@@ -8,6 +8,88 @@
 #include <ctype.h>
 
 /**
+ * Initialise a queue data structure.
+ *
+ * q (queue*): the queue to initialise
+ *
+ */
+void init_queue(queue* q) {
+    q->head = 0;
+    q->tail = 0;
+}
+
+/**
+ * Free all data associated with a queue.
+ *
+ * q (queue*): the queue to free
+ *
+ */
+void free_queue(queue* q) {
+    struct node* head = q->head;
+    while (head != 0) {
+        struct node* temp = head;
+        head = head->next;
+        free(temp);
+    }
+}
+
+/**
+ * Add an element to the end of queue.
+ *
+ * q (queue*): the queue to update
+ * pos (Position): the position to add
+ *
+ */
+void add_queue(queue* q, Position pos) {
+    if (q->head == 0) {
+        q->tail = q->head = malloc(sizeof(struct node));
+        q->head->next = 0;
+    } else {
+        struct node* n = malloc(sizeof(struct node));
+        n->next = 0;
+        q->tail->next = n;
+        q->tail = n;
+    }
+    q->tail->pos = pos;
+}
+
+/**
+ * Retrieve the first element of a queue.
+ *
+ * q (queue*): the queue to modify
+ *
+ * Returns the first Position of the queue.
+ *
+ */
+Position get_queue(queue* q) {
+    if (q->head == 0) {
+        Position pos = {0, 0};
+        return pos;
+    }
+    Position result = q->head->pos;
+    struct node* temp = q->head;
+    q->head = q->head->next;
+    free(temp);
+
+    if (q->head == 0) {
+        q->tail = 0;
+    }
+    return result;
+}
+
+/**
+ * Check if a queue is empty.
+ *
+ * q (queue*): the queue to check
+ *
+ * Returns true if the queue is empty.
+ *
+ */
+bool is_empty(queue q) {
+    return q.head == 0;
+}
+
+/**
  * Free the memory of an agent state
  *
  * state (AgentState*): the agent state to be freed
@@ -99,6 +181,20 @@ void send_map_message(Map map) {
     fflush(stdout);
 }
 
+void switch_mode(AgentState* state, Position pos) {
+    Direction directions[4] = {DIR_NORTH, DIR_EAST, DIR_SOUTH, DIR_WEST};
+    for (int i = 0; i < sizeof(directions) / sizeof(Direction); i++) {
+        Position current = next_position_in_direction(pos, directions[i]);
+        if (current.row < 0 || current.row > 
+                state->info.rules.numRows - 1 || current.col < 0 || 
+                current.col > state->info.rules.numCols - 1) {
+            continue;
+        }
+        add_queue(&state->to_attack, current);
+    }
+    state->mode = ATTACK;
+}
+
 /**
  * Read a hit message of either type HIT, SUNK, MISS.
  *
@@ -142,9 +238,13 @@ AgentStatus read_hit_message(AgentState* state, char* message, int agent,
     }
 
     if (hit == HIT_HIT) {
+        if (id == state->info.id) {
+            switch_mode(state, pos);
+        }
         fprintf(stderr, "HIT ");
     } else if (hit == HIT_SUNK) {
         if (id == state->info.id) {
+            switch_mode(state, pos);
             state->opponentShips--;
         } else {
             state->agentShips--;
@@ -153,8 +253,12 @@ AgentStatus read_hit_message(AgentState* state, char* message, int agent,
     } else if (hit == HIT_MISS) {
         fprintf(stderr, "MISS ");
     }
+    if (is_empty(state->to_attack)) {
+        state->mode = SEARCH;
+    }
     fprintf(stderr, "player %d guessed %c%d\n", id, col, row);
     free(message);
+    switch_mode(state, pos);
     return AGENT_NORMAL;
 }
 
@@ -362,6 +466,7 @@ AgentState init_agent(AgentInfo info) {
     newState.hitMaps[1] = empty_hitmap(info.rules.numRows, 
             info.rules.numCols);
     newState.info = info;
+    init_queue(&newState.to_attack);
 
     initialise_hitmaps(newState);
     
@@ -429,9 +534,9 @@ AgentStatus play_game(AgentState* state) {
                         break; // we got OK   
                     }
                     if (state->info.id == 1) {
-                        make_guess(&state->hitMaps[1], state->mode);
+                        make_guess(state);
                     } else {
-                        make_guess(&state->hitMaps[0], state->mode);
+                        make_guess(state);
                     }
                     check_ok = true; // look for OK now
                 } else {

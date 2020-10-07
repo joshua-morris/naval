@@ -23,19 +23,27 @@ Position generate_position(int width, int height) {
 /**
  * Make a guess based on the algorithm given in the specification.
  *
- * hitMap (HitMap*): the hitmap to be attacked
- * mode (AgentMode): the current search mode of the agent
+ * state (AgentState*): the state of this agent
  *
  */
-void make_guess(HitMap* hitMap, AgentMode mode) {
-    Position pos;
-    if (mode == SEARCH) {
-        pos = generate_position(hitMap->cols, hitMap->rows);
-        while (get_position_info(*hitMap, pos) != HIT_NONE) {
-            pos = generate_position(hitMap->cols, hitMap->rows);
-        }
-    } else if (mode == ATTACK) {
-
+void make_guess(AgentState* state) {
+    int opponent;
+    if (state->info.id == 1) {
+        opponent = 1;
+    } else {
+        opponent = 0;
     }
-    printf("%c%d\n", pos.col + 'A', pos.row + 1);;
+
+    Position pos;
+    if (state->mode == SEARCH) {
+        pos = generate_position(state->hitMaps[opponent].cols, 
+                state->hitMaps[opponent].rows);
+        while (get_position_info(state->hitMaps[opponent], pos) != HIT_NONE) {
+            pos = generate_position(state->hitMaps[opponent].cols, 
+                    state->hitMaps[opponent].rows);
+        }
+    } else if (state->mode == ATTACK) {
+        pos = get_queue(&state->to_attack);
+    }
+    printf("GUESS %c%d\n", pos.col + 'A', pos.row + 1);;
 }
