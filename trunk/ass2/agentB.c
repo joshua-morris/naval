@@ -43,7 +43,8 @@ void make_guess(AgentState* state) {
                     state->hitMaps[opponent].rows);
         }
     } else if (state->mode == ATTACK) {
-        pos = get_queue(&state->to_attack);
+        pos = get_queue(&state->toAttack);
     }
+    add_queue(&state->beenQueued, pos);
     printf("GUESS %c%d\n", pos.col + 'A', pos.row + 1);;
 }

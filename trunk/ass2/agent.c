@@ -10,10 +10,10 @@
 /**
  * Initialise a queue data structure.
  *
- * q (queue*): the queue to initialise
+ * q (Queue*): the queue to initialise
  *
  */
-void init_queue(queue* q) {
+void init_queue(Queue* q) {
     q->head = 0;
     q->tail = 0;
 }
@@ -21,13 +21,13 @@ void init_queue(queue* q) {
 /**
  * Free all data associated with a queue.
  *
- * q (queue*): the queue to free
+ * q (Queue*): the queue to free
  *
  */
-void free_queue(queue* q) {
-    struct node* head = q->head;
+void free_queue(Queue* q) {
+    struct Node* head = q->head;
     while (head != 0) {
-        struct node* temp = head;
+        struct Node* temp = head;
         head = head->next;
         free(temp);
     }
@@ -36,16 +36,16 @@ void free_queue(queue* q) {
 /**
  * Add an element to the end of queue.
  *
- * q (queue*): the queue to update
+ * q (Queue*): the queue to update
  * pos (Position): the position to add
  *
  */
-void add_queue(queue* q, Position pos) {
+void add_queue(Queue* q, Position pos) {
     if (q->head == 0) {
-        q->tail = q->head = malloc(sizeof(struct node));
+        q->tail = q->head = malloc(sizeof(struct Node));
         q->head->next = 0;
     } else {
-        struct node* n = malloc(sizeof(struct node));
+        struct Node* n = malloc(sizeof(struct Node));
         n->next = 0;
         q->tail->next = n;
         q->tail = n;
@@ -56,18 +56,18 @@ void add_queue(queue* q, Position pos) {
 /**
  * Retrieve the first element of a queue.
  *
- * q (queue*): the queue to modify
+ * q (Queue*): the queue to modify
  *
  * Returns the first Position of the queue.
  *
  */
-Position get_queue(queue* q) {
+Position get_queue(Queue* q) {
     if (q->head == 0) {
         Position pos = {0, 0};
         return pos;
     }
     Position result = q->head->pos;
-    struct node* temp = q->head;
+    struct Node* temp = q->head;
     q->head = q->head->next;
     free(temp);
 
@@ -80,13 +80,33 @@ Position get_queue(queue* q) {
 /**
  * Check if a queue is empty.
  *
- * q (queue*): the queue to check
+ * q (Queue*): the queue to check
  *
  * Returns true if the queue is empty.
  *
  */
-bool is_empty(queue q) {
+bool is_empty(Queue q) {
     return q.head == 0;
+}
+
+/**
+ * Check if a position is in a queue.
+ *
+ * q (Queue): the queue to look in
+ * pos (Position): the position to find
+ *
+ * Returns true if the postition was found.
+ *
+ */
+bool queue_in(Queue* q, Position pos) {
+    struct Node* current = q->head;
+    while (current != 0) {
+        if (positions_equal(current->pos, pos)) {
+            return true;
+        }
+        current = current->next;
+    }
+    return false;
 }
 
 /**
@@ -100,6 +120,8 @@ void free_agent_state(AgentState* state) {
     free_hitmap(&state->hitMaps[0]);
     free_hitmap(&state->hitMaps[1]);
     free_map(&state->info.map);
+    free_queue(&state->toAttack);
+    free_queue(&state->beenQueued);
 }
 
 /**
@@ -181,18 +203,37 @@ void send_map_message(Map map) {
     fflush(stdout);
 }
 
-void switch_mode(AgentState* state, Position pos) {
-    Direction directions[4] = {DIR_NORTH, DIR_EAST, DIR_SOUTH, DIR_WEST};
-    for (int i = 0; i < sizeof(directions) / sizeof(Direction); i++) {
-        Position current = next_position_in_direction(pos, directions[i]);
-        if (current.row < 0 || current.row > 
-                state->info.rules.numRows - 1 || current.col < 0 || 
-                current.col > state->info.rules.numCols - 1) {
-            continue;
+/**
+ * Switch the ATTACK mode of an agent if necessary.
+ *
+ * state (AgentState*): the state of this agent
+ * pos (Position): the last position attacked
+ * was_hit (bool): was the attack successful
+ *
+ */
+void switch_mode(AgentState* state, Position pos, bool wasHit) {
+
+    if (wasHit) {
+        Direction directions[4] = {DIR_NORTH, DIR_EAST, DIR_SOUTH, DIR_WEST};
+        for (int i = 0; i < sizeof(directions) / sizeof(Direction); i++) {
+            Position current = next_position_in_direction(pos, directions[i]);
+            if (current.row < 0 || current.row > 
+                    state->info.rules.numRows - 1 || current.col < 0 || 
+                    current.col > state->info.rules.numCols - 1) {
+                continue; // out of bounds
+            }
+            if (queue_in(&state->beenQueued, current) ||
+                    queue_in(&state->toAttack, current)) {
+                continue; // position already tracked
+            }
+            add_queue(&state->toAttack, current);
         }
-        add_queue(&state->to_attack, current);
+        state->mode = ATTACK;
+    } else {
+        if (is_empty(state->toAttack)) {
+            state->mode = SEARCH;
+        }
     }
-    state->mode = ATTACK;
 }
 
 /**
@@ -225,7 +266,6 @@ AgentStatus read_hit_message(AgentState* state, char* message, int agent,
     if (id - 1 != agent) { // the wrong agent is hitting
         return AGENT_COMM_ERR;
     }
-
     Position pos = new_position(col, row);
     char data = hit;
     if (hit == HIT_SUNK) {
@@ -236,15 +276,14 @@ AgentStatus read_hit_message(AgentState* state, char* message, int agent,
     } else if (id == 2) {
         update_hitmap(&state->hitMaps[0], pos, data);
     }
-
     if (hit == HIT_HIT) {
         if (id == state->info.id) {
-            switch_mode(state, pos);
+            switch_mode(state, pos, true);
         }
         fprintf(stderr, "HIT ");
     } else if (hit == HIT_SUNK) {
         if (id == state->info.id) {
-            switch_mode(state, pos);
+            switch_mode(state, pos, true);
             state->opponentShips--;
         } else {
             state->agentShips--;
@@ -252,13 +291,12 @@ AgentStatus read_hit_message(AgentState* state, char* message, int agent,
         fprintf(stderr, "SHIP SUNK ");
     } else if (hit == HIT_MISS) {
         fprintf(stderr, "MISS ");
-    }
-    if (is_empty(state->to_attack)) {
-        state->mode = SEARCH;
+        switch_mode(state, pos, false);
+    } else {
+        switch_mode(state, pos, false);
     }
     fprintf(stderr, "player %d guessed %c%d\n", id, col, row);
     free(message);
-    switch_mode(state, pos);
     return AGENT_NORMAL;
 }
 
@@ -284,6 +322,18 @@ AgentStatus read_hit(AgentState* state, int agent) {
         return read_hit_message(state, line, agent, HIT_MISS);
     } else if (check_tag("EARLY", line)) {
         agent_exit(AGENT_NORMAL, state);
+    } else if (check_tag("DONE", line)) {
+        int id;
+        if (check_tag("DONE", line)) {
+            if (sscanf(line, "DONE %d", &id) != 1) {
+                return AGENT_COMM_ERR;
+            }
+            if (id == 1 || id == 2) {
+                fprintf(stderr, "GAME OVER - player %d wins\n", id);
+                free(line);
+                agent_exit(AGENT_NORMAL, state);
+            }
+        }   
     }
     
     return AGENT_COMM_ERR;
@@ -466,7 +516,8 @@ AgentState init_agent(AgentInfo info) {
     newState.hitMaps[1] = empty_hitmap(info.rules.numRows, 
             info.rules.numCols);
     newState.info = info;
-    init_queue(&newState.to_attack);
+    init_queue(&newState.toAttack);
+    init_queue(&newState.beenQueued);
 
     initialise_hitmaps(newState);
     
@@ -493,6 +544,18 @@ bool read_yt(AgentState* state, bool check_ok) {
         agent_exit(AGENT_NORMAL, state);
     } else if (check_ok && check_tag("OK", next)) {
         return false;
+    } else if (check_tag("DONE", next)) {
+        int id;
+        if (check_tag("DONE", next)) {
+            if (sscanf(next, "DONE %d", &id) != 1) {
+                return AGENT_COMM_ERR;
+            }
+            if (id == 1 || id == 2) {
+                fprintf(stderr, "GAME OVER - player %d wins\n", id);
+                free(next);
+                agent_exit(AGENT_NORMAL, state);
+            }
+        }   
     }
     agent_exit(AGENT_COMM_ERR, state);
     return false;
@@ -533,11 +596,7 @@ AgentStatus play_game(AgentState* state) {
                     if (!got_yt) {
                         break; // we got OK   
                     }
-                    if (state->info.id == 1) {
-                        make_guess(state);
-                    } else {
-                        make_guess(state);
-                    }
+                    make_guess(state);
                     check_ok = true; // look for OK now
                 } else {
                     break;
@@ -546,14 +605,6 @@ AgentStatus play_game(AgentState* state) {
 
             if ((status = read_hit(state, agent)) != AGENT_NORMAL) {
                 return status;
-            }
-
-            if (state->agentShips == 0 || state->opponentShips == 0) { 
-                // game should be over
-                if (agent == NUM_AGENTS - 1) {
-                    print_agent_maps(state);
-                }
-                return wait_for_done();
             }
 
             if (agent == NUM_AGENTS - 1) {

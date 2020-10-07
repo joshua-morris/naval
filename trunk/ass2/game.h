@@ -176,6 +176,8 @@ bool is_valid_direction(char dir);
 bool is_valid_column(char col);
 bool is_valid_row(int row);
 
+bool positions_equal(Position first, Position second);
+
 /* Hit maps */
 void update_hitmap(HitMap* map, Position pos, char data);
 HitMap empty_hitmap(int rows, int cols);
