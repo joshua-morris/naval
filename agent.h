@@ -4,22 +4,22 @@
 #define AGENT_H
 
 /* Nodes containing Positions */
-struct node {
+struct Node {
     Position pos;
-    struct node* next;
+    struct Node* next;
 };
 
 /* A queue containing positions */
-typedef struct queue {
-    struct node* head;
-    struct node* tail;
-} queue;
+typedef struct Queue {
+    struct Node* head;
+    struct Node* tail;
+} Queue;
 
 /* Queue methods */
-void init_queue(queue* q);
-void free_queue(queue* q);
-void add_queue(queue* q, Position pos);
-Position get_queue(queue* q);
+void init_queue(Queue* q);
+void free_queue(Queue* q);
+void add_queue(Queue* q, Position pos);
+Position get_queue(Queue* q);
 
 /* Exit codes for the agent as per the specification */
 typedef enum {
@@ -52,7 +52,8 @@ typedef struct AgentInfo {
  * - opponentShips: the number of ships the opponent has
  * - agentShips: the number of ships this agent has
  * - mode: the mode of the agent (only applies to agent B)
- * - to_attack: a FIFO data structure containing positions to attack
+ * - toAttack: a FIFO data structure containing positions to attack
+ * - beenQueued: keeping track of the positions we have visited in attack
  */
 typedef struct AgentState {
     AgentInfo info;
@@ -60,7 +61,8 @@ typedef struct AgentState {
     int opponentShips;
     int agentShips;
     AgentMode mode;
-    struct queue to_attack;
+    struct Queue toAttack;
+    struct Queue beenQueued;
 } AgentState;
 
 /* Exit from the program */
