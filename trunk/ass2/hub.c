@@ -92,8 +92,7 @@ void send_yt(Agent* agent) {
 /**
  * Read the MAP message from an agent.
  *
- * agent (Agent*): the state to update
- * rules (Rules): the rules of the current game
+ * map (Map*): the map to update
  * stream (FILE*): the stream to read from
  *
  * Returns NORMAL on success otherwise a COMM_ERR.
@@ -152,13 +151,35 @@ HubStatus read_map_message(Map* map, FILE* stream) {
 }
 
 /**
+ * Sends a hit message to the agents.
+ *
+ * type (char*): the type of hit as a string
+ * info (GameInfo): the info for this game
+ * id (int): the id of the hitting agent
+ * row (int): the row being hit
+ * col (int): the column being hit
+ *
+ */
+void send_hit_message(char* type, GameInfo info, int id, int row, int col) {
+    fprintf(info.agents[id - 1].in, "OK\n");
+    fprintf(info.agents[0].in, "%s %d,%c%d\n", type, id, col, row);
+    fprintf(info.agents[1].in, "%s %d,%c%d\n", type, id, col, row);
+    if (!strcmp(type, "SUNK")) {
+        printf("SHIP %s player %d guessed %c%d\n", type, id, col, row);
+    } else {
+        printf("%s player %d guessed %c%d\n", type, id, col, row);
+    }
+    fflush(info.agents[0].in);
+    fflush(info.agents[1].in);
+}
+
+/**
  * Read a GUESS message from the agent.
  *
- * hitMap (HitMap*): the hitmap to update
- * map (Map*): the map to check
- * stream (FILE*): the input stream
+ * state (GameState*): the state of this agent
+ * id (int): the id of this agent
  *
- * The status of the hub NORMAL if successful.
+ * The type of hit.
  *
  */
 HitType read_guess_message(GameState* state, int id) {
@@ -185,26 +206,11 @@ HitType read_guess_message(GameState* state, int id) {
     }
     
     if (hit == HIT_HIT) {
-        fprintf(state->info.agents[id - 1].in, "OK\n");
-        fprintf(state->info.agents[0].in, "HIT %d,%c%d\n", id, col, row);
-        fprintf(state->info.agents[1].in, "HIT %d,%c%d\n", id, col, row);
-        printf("HIT player %d guessed %c%d\n", id, col, row);
-        fflush(state->info.agents[0].in);
-        fflush(state->info.agents[1].in);
+        send_hit_message("HIT", state->info, id, row, col);
     } else if (hit == HIT_MISS) {
-        fprintf(state->info.agents[id - 1].in, "OK\n");
-        fprintf(state->info.agents[0].in, "MISS %d,%c%d\n", id, col, row);
-        fprintf(state->info.agents[1].in, "MISS %d,%c%d\n", id, col, row);
-        printf("MISS player %d guessed %c%d\n", id, col, row);
-        fflush(state->info.agents[0].in);
-        fflush(state->info.agents[1].in);
+        send_hit_message("MISS", state->info, id, row, col);
     } else if (hit == HIT_SUNK) {
-        fprintf(state->info.agents[id - 1].in, "OK\n");
-        fprintf(state->info.agents[0].in, "SUNK %d,%c%d\n", id, col, row);
-        fprintf(state->info.agents[1].in, "SUNK %d,%c%d\n", id, col, row);
-        printf("SHIP SUNK player %d guessed %c%d\n", id, col, row);
-        fflush(state->info.agents[0].in);
-        fflush(state->info.agents[1].in);
+        send_hit_message("SUNK", state->info, id, row, col);
     }
     free(line);
     return hit;
@@ -288,7 +294,7 @@ HubStatus create_children(GameInfo* info) {
 }
 
 /**
- * SIGHUP handler. Exits with GOT_SIGHUP.
+ * SIGHUP handler. Exits with GOT_SIGHUP. Frees the game state.
  */
 void handle_sighup() {
     hub_exit(GOT_SIGHUP, globalState);
