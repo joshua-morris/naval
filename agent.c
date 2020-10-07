@@ -208,7 +208,7 @@ void send_map_message(Map map) {
  *
  * state (AgentState*): the state of this agent
  * pos (Position): the last position attacked
- * was_hit (bool): was the attack successful
+ * wasHit (bool): was the attack successful
  *
  */
 void switch_mode(AgentState* state, Position pos, bool wasHit) {
@@ -359,7 +359,7 @@ AgentStatus read_id(char* message, int* id) {
     return AGENT_NORMAL;
 }
 
-/*
+/**
  * Read the given line and overwrite the map file.
  *
  * line (char*): the line to be read
@@ -452,6 +452,7 @@ AgentStatus read_rules_message(Rules* rules) {
 
     int width, height, numShips;
     if (sscanf(message + index, "%d,%d,%d", &width, &height, &numShips) != 3) {
+        free(message);
         return AGENT_COMM_ERR;
     }
 
@@ -469,11 +470,14 @@ AgentStatus read_rules_message(Rules* rules) {
             ship++;
         } else {
             if (sscanf(message + index, "%d", &shipLengths[ship]) != 1) {
+                free(message);
                 return AGENT_COMM_ERR;
             }
         }
         index++;
     }
+
+    free(message);
     if (ship != numShips - 1) {
         return AGENT_COMM_ERR;
     }
@@ -483,6 +487,7 @@ AgentStatus read_rules_message(Rules* rules) {
     rules->numShips = numShips;
     rules->shipLengths = malloc(sizeof(int) * numShips);
     memcpy(rules->shipLengths, shipLengths, numShips * sizeof(*shipLengths));
+    free(shipLengths);
     return AGENT_NORMAL;
 }
 
@@ -528,26 +533,31 @@ AgentState init_agent(AgentInfo info) {
  * Read a YT message and exit appropriately.
  *
  * state (AgentState*): this agent's state
- * check_ok (bool): should we be looking for OK message
+ * checkOk (bool): should we be looking for OK message
  *
  * Returns true if YT, false if OK.
  *
  */
-bool read_yt(AgentState* state, bool check_ok) {
+bool read_yt(AgentState* state, bool checkOk) {
     char* next;
     if ((next = read_line(stdin)) == NULL) {
+        free(next);
         agent_exit(AGENT_COMM_ERR, state);
     }
     if (check_tag("YT", next)) {
+        free(next);
         return true;
     } else if (check_tag("EARLY", next)) {
+        free(next);
         agent_exit(AGENT_NORMAL, state);
-    } else if (check_ok && check_tag("OK", next)) {
+    } else if (checkOk && check_tag("OK", next)) {
+        free(next);
         return false;
     } else if (check_tag("DONE", next)) {
         int id;
         if (check_tag("DONE", next)) {
             if (sscanf(next, "DONE %d", &id) != 1) {
+                free(next);
                 return AGENT_COMM_ERR;
             }
             if (id == 1 || id == 2) {
@@ -557,6 +567,7 @@ bool read_yt(AgentState* state, bool check_ok) {
             }
         }   
     }
+    free(next);
     agent_exit(AGENT_COMM_ERR, state);
     return false;
 }
