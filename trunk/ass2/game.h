@@ -132,36 +132,6 @@ typedef enum AgentMode {
     SEARCH, ATTACK
 } AgentMode;
 
-/**
- * The overall info related to an agent state.
- *
- * - id: the id for this agent
- * - rules: the rules of this game
- * - map: the map of this agent
- */
-typedef struct AgentInfo {
-    int id;
-    Rules rules;
-    Map map;
-} AgentInfo;
-
-/**
- * The overall state of a game from an agent's perspective.
- *
- * - info: the agent info
- * - hitMaps[]: the hitmaps of each player
- * - opponentShips: the number of ships the opponent has
- * - agentShips: the number of ships this agent has
- * - mode: the mode of the agent (only applies to agent B)
- */
-typedef struct AgentState {
-    AgentInfo info;
-    HitMap hitMaps[2];
-    int opponentShips;
-    int agentShips;
-    AgentMode mode;
-} AgentState;
-
 /* The current state of reading a rules file */
 typedef enum RuleReadState {
     READ_DIMS, READ_SHIPS, READ_LENGTHS, READ_DONE, READ_INVALID
@@ -189,7 +159,6 @@ HubStatus validate_info(GameInfo info);
 GameState init_game(GameInfo info);
 
 /* Memory management */
-void free_agent_state(AgentState* state);
 void free_game(GameState* state);
 void free_map(Map* map);
 void free_rules(Rules* rules);
@@ -208,7 +177,6 @@ bool is_valid_column(char col);
 bool is_valid_row(int row);
 
 /* Hit maps */
-void initialise_hitmaps(AgentState state);
 void update_hitmap(HitMap* map, Position pos, char data);
 HitMap empty_hitmap(int rows, int cols);
 HitType mark_ship_hit(HitMap* hitmap, Map* playerMap, Position pos);
@@ -227,5 +195,7 @@ bool all_ships_sunk(Map map);
 Map empty_map(void);
 
 char get_position_info(HitMap map, Position pos);
+
+Position next_position_in_direction(Position pos, Direction dir);
 
 #endif
