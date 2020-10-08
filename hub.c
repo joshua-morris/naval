@@ -1,5 +1,6 @@
 #include "game.h"
 
+#include <sys/wait.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -16,10 +17,19 @@
 Rounds* globalRounds;
 
 /**
+ * Kill the agents of a round (game).
+ *
+ * state (GameState*): the game state with those agents
  *
  */
-void kill_children() {
-
+void kill_children(GameState* state) {
+    for (int agent = 0; agent < NUM_AGENTS; agent++) {
+        int pid = state->info.agents[agent].pid;
+        if (waitpid(pid, 0, WNOHANG) == 0) {
+            // check if child is still running
+            kill(pid, SIGKILL);
+        }
+    }       
 }
 
 /**
@@ -57,7 +67,7 @@ void hub_exit(HubStatus err, Rounds* rounds) {
     
     if (rounds != NULL) {
         for (int round = 0; round < rounds->rounds; round++) {
-            kill_children();
+            kill_children(&rounds->states[round]);
             free_game(&rounds->states[round]);
         }
     }
@@ -357,6 +367,7 @@ HubStatus play_game(Rounds* rounds) {
                             "DONE %d", agent + 1);
                     printf("GAME OVER - player %d wins\n", agent + 1);
                     rounds->inProgress[round] = false; // game is over
+                    kill_children(&rounds->states[round]);
                     if (!rounds_in_progress(rounds)) {
                         return NORMAL;
                     }
