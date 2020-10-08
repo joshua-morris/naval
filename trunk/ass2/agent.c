@@ -406,6 +406,7 @@ AgentStatus read_map_file(char* filepath, Map* map) {
         }
         if (!read_map_line(next, &newMap)) {
             free(next);
+            free_map(&newMap);
             fclose(infile);
             return INVALID_MAP;
         }

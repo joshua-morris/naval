@@ -894,6 +894,35 @@ GameState init_game(GameInfo info) {
 }
 
 /**
+ * Initialise rounds with the given game infos.
+ *
+ * info (GameInfo*): the game infos to use
+ * numRounds (int): the number of rounds
+ *
+ * Returns a new rounds with the given info.
+ *
+ */
+Rounds init_rounds(GameInfo* info, int numRounds) {
+    Rounds newRounds;
+
+    newRounds.rounds = numRounds;
+    newRounds.states = malloc(0);
+    newRounds.inProgress = malloc(0);
+
+    for (int round = 0; round < numRounds; round++) {
+        GameState current = init_game(info[round]);
+        newRounds.states = realloc(newRounds.states, 
+                sizeof(GameState) * (round + 1));
+        newRounds.inProgress = realloc(newRounds.inProgress, 
+                sizeof(GameState) * (round + 1));
+        newRounds.states[round] = current;
+        newRounds.inProgress[round] = true;
+    }
+
+    return newRounds;
+}
+
+/**
  * Free the memory of a hitmap
  *
  * map (HitMap*): the hitmap to be freed

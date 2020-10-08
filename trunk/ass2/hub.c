@@ -409,21 +409,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    Rounds rounds;
-    rounds.rounds = numRounds;
-    rounds.states = malloc(0);
-    rounds.inProgress = malloc(0);
-
-    for (int round = 0; round < numRounds; round++) {
-        GameState current = init_game(info[round]);
-        rounds.states = realloc(rounds.states, 
-                sizeof(GameState) * (round + 1));
-        rounds.inProgress = realloc(rounds.inProgress, 
-                sizeof(GameState) * (round + 1));
-        rounds.states[round] = current;
-        rounds.inProgress[round] = true;
-    }
-
+    Rounds rounds = init_rounds(info, numRounds);
     globalRounds = &rounds;
 
     status = play_game(&rounds);
