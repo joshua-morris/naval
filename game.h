@@ -169,6 +169,7 @@ GameInfo* read_config_file(char* filepath, HubStatus* status, int* rounds);
 
 HubStatus validate_info(GameInfo info);
 GameState init_game(GameInfo info);
+Rounds init_rounds(GameInfo* info, int numRounds);
 
 /* Memory management */
 void free_game(GameState* state);
