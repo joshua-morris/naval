@@ -653,59 +653,84 @@ char* config_read_to(int* index, char* line) {
 }
 
 /**
- * Read the config file in the hub.
+ * Read an individual line from the config file.
  *
- * filepath (char*): the filepath of the config
- * info (GameInfo*): the info to be modified
+ * line (char*): the line to read
+ * info (GameInfo*): the info to update
+ *
+ * Returns NORMAL if successful
  *
  */
-HubStatus read_config_file(char* filepath, GameInfo* info) {
-    FILE* infile = fopen(filepath, "r");
-    if (!infile) {
-        return INVALID_CONFIG;
-    }
-    char* line;
-    
-    while ((line = read_line(infile)) != NULL) {
-        strtrim(line);
-        if (is_comment(line)) {
-            free(line);
-            continue;
-        }
-        break;
-    }
-
+HubStatus read_config_line(char* line, GameInfo* info) {
     int count = 0;
     int index = 0;
     char* current;
+
+    GameInfo newInfo;
     while (true) {
         if (count == 0) {
             current = config_read_to(&index, line + index);
-            info->agents[0].programPath = malloc(sizeof(current));
-            strcpy(info->agents[0].programPath, current);
+            newInfo.agents[0].programPath = malloc(sizeof(current));
+            strcpy(newInfo.agents[0].programPath, current);
             count++;
         } else if (count == 1) {
             current = config_read_to(&index, line + index);
-            info->agents[0].mapPath = malloc(sizeof(current));
-            strcpy(info->agents[0].mapPath, current);
+            newInfo.agents[0].mapPath = malloc(sizeof(current));
+            strcpy(newInfo.agents[0].mapPath, current);
             count++;
         } else if (count == 2) {
             current = config_read_to(&index, line + index);
-            info->agents[1].programPath = malloc(sizeof(current));
-            strcpy(info->agents[1].programPath, current);
+            newInfo.agents[1].programPath = malloc(sizeof(current));
+            strcpy(newInfo.agents[1].programPath, current);
             count++;
         } else if (count == 3) {
             current = config_read_to(&index, line + index);
-            info->agents[1].mapPath = malloc(sizeof(current));
-            strcpy(info->agents[1].mapPath, current);
+            newInfo.agents[1].mapPath = malloc(sizeof(current));
+            strcpy(newInfo.agents[1].mapPath, current);
             count++;
         } else {
             break;
         }
         free(current);
     }
-    free(line);
+    memcpy(info, &newInfo, sizeof(GameInfo));
     return NORMAL;
+}
+
+/**
+ * Read the config file in the hub.
+ *
+ * filepath (char*): the filepath of the config
+ * info (GameInfo**): the info array to be modified
+ * rounds (int*): the number of rounds (to be modified)
+ *
+ * Returns NORMAL if successful.
+ *
+ */
+GameInfo* read_config_file(char* filepath, HubStatus* status, int* rounds) {
+    GameInfo* info = malloc(sizeof(GameInfo));
+
+    FILE* infile = fopen(filepath, "r");
+    if (!infile) {
+        *status = INVALID_CONFIG;
+        return info;
+    }
+
+    char* line;
+    while ((line = read_line(infile)) != NULL) {
+        strtrim(line);
+        if (is_comment(line)) {
+            free(line);
+            continue;
+        }
+        info = realloc(info, sizeof(GameInfo) * (*rounds + 1));
+        read_config_line(line, &info[*rounds]);
+        (*rounds)++;
+        free(line);
+    }
+
+    *status = NORMAL;
+    return info;
 }
 
 /**

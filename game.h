@@ -127,6 +127,18 @@ typedef struct GameState {
     HitMap maps[2];
 } GameState;
 
+/**
+ * The rounds of a game.
+ * - states: the states of each round
+ * - round: the number of rounds
+ * - inProgress: rounds in progress
+ */
+typedef struct Rounds {
+    GameState* states;
+    int rounds;
+    bool* inProgress;
+} Rounds;
+
 /* Current state of reading in the play loop */
 typedef enum AgentMode {
     SEARCH, ATTACK
@@ -153,7 +165,7 @@ typedef enum PlayReadState {
 
 /* File parsing */
 HubStatus read_rules_file(char* filepath, Rules* rules);
-HubStatus read_config_file(char* filepath, GameInfo* info);
+GameInfo* read_config_file(char* filepath, HubStatus* status, int* rounds);
 
 HubStatus validate_info(GameInfo info);
 GameState init_game(GameInfo info);

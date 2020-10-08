@@ -13,7 +13,7 @@
 #define PIPE_WRITE 1
 
 // needed to handling signals (SIGHUP)
-GameState* globalState;
+Rounds* globalRounds;
 
 /**
  *
@@ -31,7 +31,7 @@ void kill_children() {
  * Exits with code `err`.
  *
  */
-void hub_exit(HubStatus err, GameState* state) {
+void hub_exit(HubStatus err, Rounds* rounds) {
     switch (err) {
         case INCORRECT_ARG_COUNT:
             fprintf(stderr, "Usage: 2310hub rules config\n");
@@ -54,9 +54,12 @@ void hub_exit(HubStatus err, GameState* state) {
         default:
             break;
     }
-    kill_children();
-    if (state != NULL) {
-        free_game(state);
+    
+    if (rounds != NULL) {
+        for (int round = 0; round < rounds->rounds; round++) {
+            kill_children();
+            free_game(&rounds->states[round]);
+        }
     }
     exit(err);
 }
@@ -179,22 +182,22 @@ void send_hit_message(char* type, GameInfo info, int id, int row, int col) {
  * state (GameState*): the state of this agent
  * id (int): the id of this agent
  *
- * The type of hit.
+ * Returns NORMAL if successful, otherwise a COMM_ERR.
  *
  */
-HitType read_guess_message(GameState* state, int id) {
+HubStatus read_guess_message(GameState* state, int id, HitType* hitType) {
     char* line;
     if ((line = read_line(state->info.agents[id - 1].out)) == NULL 
             || !check_tag("GUESS ", line)) {
         free(line);
-        hub_exit(COMM_ERR, state);
+        return COMM_ERR;
     }
 
     char col;
     int row;
     if (sscanf(line, "GUESS %c%d", &col, &row) != 2) {
         free(line);
-        hub_exit(COMM_ERR, state);
+        return COMM_ERR;
     }
     HitType hit;
     if (id == 1) {
@@ -213,7 +216,8 @@ HitType read_guess_message(GameState* state, int id) {
         send_hit_message("SUNK", state->info, id, row, col);
     }
     free(line);
-    return hit;
+    *hitType = hit;
+    return NORMAL;
 }
 
 /**
@@ -282,12 +286,13 @@ HubStatus create_child(int id, int round, Agent* agent) {
  * Create child processes for each agent.
  *
  * info (GameInfo*): the game info, contains information about the processes
+ * round (int): the round associated with these agents
  *
  * Returns NORMAL On success otherwise an AGENT_ERR.
  */
-HubStatus create_children(GameInfo* info) {
-    if (create_child(1, 0, &info->agents[0]) == AGENT_ERR ||   
-            create_child(2, 0, &info->agents[1]) == AGENT_ERR) {
+HubStatus create_children(GameInfo* info, int round) {
+    if (create_child(1, round, &info->agents[0]) == AGENT_ERR ||   
+            create_child(2, round, &info->agents[1]) == AGENT_ERR) {
         return AGENT_ERR;
     }
     return NORMAL;
@@ -297,35 +302,65 @@ HubStatus create_children(GameInfo* info) {
  * SIGHUP handler. Exits with GOT_SIGHUP. Frees the game state.
  */
 void handle_sighup() {
-    hub_exit(GOT_SIGHUP, globalState);
+    hub_exit(GOT_SIGHUP, globalRounds);
+}
+
+/**
+ * Checks if there are still rounds in progress.
+ *
+ * rounds (Round*): the rounds to check
+ * 
+ * Returns true if there are rounds in progress.
+ *
+ */
+bool rounds_in_progress(Rounds* rounds) {
+    for (int round = 0; round < rounds->rounds; round++) {
+        if (rounds->inProgress[round]) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /**
  * Start the hub execution.
  *
- * state (GameState*): the state of the game
+ * rounds (Rounds*): the rounds for this game
+ *
+ * Returns NORMAL if successful.
  *
  */
-HubStatus play_game(GameState* state) {
-    // put this in a for loop for the rounds
-    int round = 0;
-    print_hub_maps(state->maps[0], state->maps[1], round);
+HubStatus play_game(Rounds* rounds) {
+    HubStatus status;
     while (true) {
-        for (int agent = 0; agent < NUM_AGENTS; agent++) {
-            while (true) {
-                send_yt(&state->info.agents[agent]);
-                if (read_guess_message(state, agent + 1) != HIT_REHIT) {
-                    break;
+        for (int round = 0; round < rounds->rounds; round++) {
+            print_hub_maps(rounds->states[round].maps[0], 
+                    rounds->states[round].maps[1], round);
+            if (!rounds->inProgress[round]) {
+                continue; // this round is no longer playing
+            }
+            for (int agent = 0; agent < NUM_AGENTS; agent++) {
+                HitType hitType = HIT_REHIT;
+                while (hitType == HIT_REHIT) {
+                    send_yt(&rounds->states[round].info.agents[agent]);
+                    if ((status = read_guess_message(&rounds->states[round], 
+                            agent + 1, &hitType)) != NORMAL) {
+                        return status;
+                    }
                 }
-            }
-            if (all_ships_sunk(state->info.agents[agent ^ 1].map)) {
-                fprintf(state->info.agents[0].in, "DONE %d", agent + 1);
-                fprintf(state->info.agents[1].in, "DONE %d", agent + 1);
-                printf("GAME OVER - player %d wins\n", agent + 1);
-                return NORMAL;
-            }
-            if (agent == NUM_AGENTS - 1) {
-                print_hub_maps(state->maps[0], state->maps[1], round);
+
+                if (all_ships_sunk(rounds->states[round].info
+                        .agents[agent ^ 1].map)) {
+                    fprintf(rounds->states[round].info.agents[0].in, 
+                            "DONE %d", agent + 1);
+                    fprintf(rounds->states[round].info.agents[1].in, 
+                            "DONE %d", agent + 1);
+                    printf("GAME OVER - player %d wins\n", agent + 1);
+                    rounds->inProgress[round] = false; // game is over
+                    if (!rounds_in_progress(rounds)) {
+                        return NORMAL;
+                    }
+                }
             }
         }
     }
@@ -335,43 +370,63 @@ int main(int argc, char** argv) {
     if (argc != 3) {
         hub_exit(INCORRECT_ARG_COUNT, NULL);
     }
-    GameInfo info;
+    GameInfo* info;
     HubStatus status;
+    int numRounds = 0;
 
     struct sigaction sa;
     sa.sa_handler = handle_sighup;
     sigaction(SIGHUP, &sa, 0);
-
-    if ((status = read_rules_file(argv[1], &info.rules)) != NORMAL) {
+    
+    info = read_config_file(argv[2], &status, &numRounds);
+    if (status != NORMAL) {
         hub_exit(status, NULL);
     }
 
-    if ((status = read_config_file(argv[2], &info)) != NORMAL) {
+    Rules rules;
+    if ((status = read_rules_file(argv[1], &rules)) != NORMAL) {
         hub_exit(status, NULL);
     }
 
+    for (int round = 0; round < numRounds; round++) {
+        info[round].rules = rules;
 
-    if ((status = create_children(&info)) != NORMAL) {
-        hub_exit(status, NULL);
-    }
+        if ((status = create_children(&info[round], round)) != NORMAL) {
+            hub_exit(status, NULL);
+        }
 
-    for (int agent = 0; agent < NUM_AGENTS; agent++) {
-        send_rules_message(info.rules, &info.agents[agent]);
-        status = read_map_message(&info.agents[agent].map, 
-                info.agents[agent].out);
-        if (status != NORMAL) {
+        for (int agent = 0; agent < NUM_AGENTS; agent++) {
+            send_rules_message(info[round].rules, &info[round].agents[agent]);
+            status = read_map_message(&info[round].agents[agent].map, 
+                    info[round].agents[agent].out);
+            if (status != NORMAL) {
+                hub_exit(status, NULL);
+            }
+        }
+
+        if ((status = validate_info(info[round])) != NORMAL) {
             hub_exit(status, NULL);
         }
     }
 
-    if ((status = validate_info(info)) != NORMAL) {
-        hub_exit(status, NULL);
+    Rounds rounds;
+    rounds.rounds = numRounds;
+    rounds.states = malloc(0);
+    rounds.inProgress = malloc(0);
+
+    for (int round = 0; round < numRounds; round++) {
+        GameState current = init_game(info[round]);
+        rounds.states = realloc(rounds.states, 
+                sizeof(GameState) * (round + 1));
+        rounds.inProgress = realloc(rounds.inProgress, 
+                sizeof(GameState) * (round + 1));
+        rounds.states[round] = current;
+        rounds.inProgress[round] = true;
     }
 
-    GameState state = init_game(info);
-    globalState = &state;
+    globalRounds = &rounds;
 
-    status = play_game(&state);
+    status = play_game(&rounds);
 
-    hub_exit(status, &state);
+    hub_exit(status, &rounds);
 }
